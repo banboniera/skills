@@ -1,0 +1,7 @@
+*                                       text=auto
+*.*ignore               text
+
+*.json                  text
+*.md                    text            diff=markdown
+
+.gitattributes          text

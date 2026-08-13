@@ -1,0 +1,10 @@
+# Folders
+/sea-orm-*/
+
+skills/**/evals/
+
+# Files
+*.env*
+
+# Exclude
+!*.example
