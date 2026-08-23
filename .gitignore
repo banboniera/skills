@@ -1,7 +1,5 @@
 # Folders
-/sea-orm-*/
-
-skills/**/evals/
+.workspaces/
 
 # Files
 *.env*
