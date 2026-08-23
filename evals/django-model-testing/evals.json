@@ -1,0 +1,74 @@
+{
+  "skill_name": "django-model-testing",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "full-model-coverage",
+      "prompt": "Write Django tests for the models in models.py (app label 'workshop', tasks module has a celery task notify_order_ready). Cover the model behavior properly. Put them in test_repair_order.py.",
+      "expected_output": "Test file using TestCase + setUpTestData; passing and failing full_clean() tests pinned to fields via message_dict; UniqueConstraint and CheckConstraint tested at validation and/or DB layer with nested transaction.atomic around IntegrityError; save() normalization asserted after refresh_from_db; soft delete + restore + manager exclusion tests; on_commit tested with captureOnCommitCallbacks; no serializer/view tests.",
+      "files": [
+        "files/models.py"
+      ],
+      "assertions": [
+        "Uses setUpTestData (not per-test setUp) for shared fixtures",
+        "Has a passing full_clean() test on a valid instance AND at least one assertRaises(ValidationError) around full_clean()",
+        "Pins at least one ValidationError to its field via message_dict/error_dict (closed_at)",
+        "Tests UniqueConstraint at the DB layer with assertRaises(IntegrityError) wrapped in nested transaction.atomic()",
+        "Asserts save() normalization ('RO-1' from ' ro-1 ') against the reloaded row (refresh_from_db or re-fetch)",
+        "Covers soft delete: deleted_at set, default manager excludes, all_objects still returns the row",
+        "Tests on_commit via captureOnCommitCallbacks with notify_order_ready.delay mocked",
+        "Covers the CheckConstraint closed_after_opened at validation and/or DB layer",
+        "Covers workshop PROTECT (ProtectedError on workshop delete)",
+        "Contains no serializer/view/APIClient tests"
+      ]
+    },
+    {
+      "id": 1,
+      "eval_name": "casual-constraint-request",
+      "prompt": "hey, we keep getting duplicate order numbers in prod even though there's a unique constraint on RepairOrder (models.py attached). can you add tests that actually prove the constraint works? we're on django 6.1, postgres",
+      "expected_output": "Two-layer constraint tests: full_clean() raising ValidationError for the duplicate, and a direct save/create raising IntegrityError wrapped in nested transaction.atomic to avoid TransactionManagementError. Should note QuerySet/bulk paths bypass validation.",
+      "files": [
+        "files/models.py"
+      ],
+      "assertions": [
+        "Tests the validation layer: duplicate (workshop, number) fails full_clean() with ValidationError",
+        "Tests the DB layer: direct save/create of duplicate raises IntegrityError",
+        "IntegrityError assertion is wrapped in nested transaction.atomic()",
+        "Explains or demonstrates WHY prod gets duplicates despite validation: save()/bulk paths bypass full_clean",
+        "Test names state behavior (no test_1/test_unique-style names)"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "review-existing-tests",
+      "prompt": "Review the model tests I have for RepairOrder (models.py attached) and tell me what's missing or wrong:\n\nclass RepairOrderTests(TestCase):\n    def setUp(self):\n        self.workshop = Workshop.objects.create(name='A', slug='a')\n\n    def test_create(self):\n        order = RepairOrder.objects.create(workshop=self.workshop, number='ro-1', total=10)\n        self.assertEqual(order.number, 'ro-1')\n\n    def test_unique(self):\n        RepairOrder.objects.create(workshop=self.workshop, number='X', total=10)\n        with self.assertRaises(Exception):\n            RepairOrder.objects.create(workshop=self.workshop, number='X', total=10)",
+      "expected_output": "Catches: test_create asserts pre-normalization in-memory value (save() uppercases, needs refresh_from_db \u2014 'ro-1' assertion is actually wrong); assertRaises(Exception) too broad and missing nested atomic; no full_clean/clean() coverage; no soft-delete/manager/on_commit/CheckConstraint tests; setUp instead of setUpTestData.",
+      "files": [
+        "files/models.py"
+      ],
+      "assertions": [
+        "Catches that test_create's assertEqual(order.number, 'ro-1') is wrong: save() strips+uppercases to 'RO-1'",
+        "Flags assertRaises(Exception) as too broad; recommends IntegrityError (DB layer) and/or ValidationError via full_clean",
+        "Mentions the broken-transaction problem (TransactionManagementError) and nested transaction.atomic()",
+        "Recommends setUpTestData over setUp for the shared workshop fixture",
+        "Lists missing coverage: clean() validation, CheckConstraint, soft delete + manager exclusion, on_commit notification, PROTECT"
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "hidden-traps",
+      "prompt": "Our RepairOrder model (models.py attached) has soft delete and a unique constraint on (workshop, number). Two prod incidents this month: (1) support 'restores' orders by re-creating them with the same number and sometimes gets a 500, (2) a bulk import using bulk_create inserted orders with untrimmed lowercase numbers. QA also reports the ready-notification sometimes fires when the status change wasn't actually saved. Write model tests that pin down what the model actually does in these three situations.",
+      "expected_output": "Three trap tests: (1) soft-deleted row still occupies the unconditional UniqueConstraint - re-create with same number raises IntegrityError at DB even though full_clean via default manager may pass; (2) bulk_create bypasses save() - numbers stored raw, test asserts stored unnormalized value; (3) save(update_fields=['total']) after in-memory status change to READY still enqueues notification (became_ready checks DB state before save but update_fields omits status) - test pins the misfire.",
+      "files": [
+        "files/models.py"
+      ],
+      "assertions": [
+        "Tests that creating an order with a soft-deleted row's (workshop, number) hits IntegrityError at DB layer (nested atomic), demonstrating soft-deleted rows still occupy the unconditional constraint",
+        "Notes or demonstrates that full_clean/default-manager validation can miss the soft-deleted conflict (validation queries exclude deleted rows is wrong here only if constraint validation uses _default_manager - either a test or an explicit comment)",
+        "Tests bulk_create stores raw unnormalized number (save() bypassed) by asserting the stored value",
+        "Tests the update_fields misfire: in-memory status change to READY + save(update_fields without 'status') and pins actual notification behavior",
+        "All DB-error assertions inside nested transaction.atomic(); reloads before asserting stored state"
+      ]
+    }
+  ]
+}
