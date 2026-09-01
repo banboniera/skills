@@ -1,0 +1,46 @@
+{
+  "skill_name": "django-model-testing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "SoftDeleteModel in src/app/shared/models.py has zero direct tests — the whole cascade soft-delete machinery (is_deleted flag, deletion_date, cascade_delete_root, skip/blocking collections). Add tests for its core contract through a concrete model.",
+      "expected_output": "Tests through a concrete SoftDeleteModel subclass: delete() sets is_deleted + deletion_date and preserves the row, default vs all-objects manager visibility, cascade_delete_root propagation to CASCADE relations, and blocking/skip collection behavior — persisted state asserted after refresh_from_db.",
+      "files": [],
+      "assertions": [
+        "File is syntactically valid Python",
+        "Tests run through a concrete SoftDeleteModel subclass, not the abstract base directly",
+        "delete() asserted to set is_deleted and deletion_date on the persisted row (refresh_from_db or DB re-query)",
+        "Manager contract: soft-deleted row excluded from the default/active queryset but still reachable via an escape-hatch manager or unfiltered query",
+        "Cascade behavior: at least one test asserts cascade_delete_root (or related-row soft-deletion) across a CASCADE relation",
+        "Uses ModelTestCase/BaseTestCase fixtures with setUpTestData",
+        "No assertRaises(Exception) or unpinned exception assertions"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "LicensePlateModel in src/vehicles/models/common.py normalizes plates to uppercase in save() and force-merges license_plate into update_fields. Write tests for that save contract.",
+      "expected_output": "Tests via a concrete subclass: lowercase input persisted uppercase (asserted after reload), and a save(update_fields=[...]) call that omits license_plate still persists the normalized value because the override merges it in.",
+      "files": [],
+      "assertions": [
+        "File is syntactically valid Python",
+        "Normalization asserted on the STORED row (refresh_from_db/re-query), not only the in-memory instance",
+        "update_fields path tested: save(update_fields=...) omitting license_plate still persists the normalized plate",
+        "Uses a real concrete model with LicensePlateModel in its MRO (e.g. Vehicle) or an equivalent project-sanctioned subclass",
+        "No test asserts Django internals (plain CharField behavior) without the custom save contract"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "NonNegativeBalanceModel in src/companies/models/common.py guards financial balances with a MinValueValidator. Cover the validation contract, including the boundary.",
+      "expected_output": "Tests via a concrete subclass: full_clean() passes at 0.00 and positive values, raises ValidationError pinned to 'balance' via message_dict for negative values, and a note/test that save() alone does not validate.",
+      "files": [],
+      "assertions": [
+        "File is syntactically valid Python",
+        "full_clean() failure pinned to the 'balance' field via message_dict, not a bare assertRaises(ValidationError)",
+        "Boundary tested: Decimal('0.00') passes, a negative value fails",
+        "Demonstrates save() does not validate (negative balance saves without full_clean, or explicit test note asserting the bypass)",
+        "Uses subTest or separate tests so one failing boundary value cannot hide others"
+      ]
+    }
+  ]
+}

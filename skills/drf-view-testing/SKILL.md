@@ -11,8 +11,8 @@ Test **endpoint contract**: status, response shape, access, scoping, DB side eff
 
 ## Workflow
 
-1. **Read view + all it touches**: ViewSet, every inherited mixin (shared bases add pagination validation, per-action serializers, extra `@action`s), `get_queryset()` scoping, permission classes, throttles, URLconf. No test for untraced contract. Asked to cover a view: **enumerate its actions** (router defaults + every `@action`) — cover each or name exclusions.
-2. **Find project view test base** before raw boilerplate (here: `app.shared.tests.ViewTestCase` — see [Project conventions](#project-conventions)). Reuse fixtures + request builders.
+1. **Read view + all it touches**: ViewSet, every inherited mixin (shared bases add pagination validation, per-action serializers, extra `@action`s), `get_queryset()` scoping, permission classes, throttles, URLconf. No test for untraced contract. Asked to cover a view: **enumerate actions** — `python <skill-dir>/scripts/audit_actions.py <views.py> [test_module.py] --shared <shared-mixins.py>…` lists router defaults + `@action`s (own + inherited from `--shared` files), flags untested, prints unresolved bases for manual check. Cover each; deliberate exclusions named in the test module's docstring (`"""Not covered: mutual_settlement (out of scope)."""`) — silence is a gap.
+2. **Find project view test base** before raw boilerplate — see [Project reference](#project-reference). Reuse its fixtures + request builders.
 3. **Pick invocation level** (ladder below).
 4. **Write tests**: one behavior per test, behavior-named, exact assertions. Shared fixtures `setUpTestData`, per-test mutable state `setUp`. Path: `<app>/tests/views/test_<name>.py`.
 5. **Run touched module only**, not whole suite.
@@ -36,18 +36,20 @@ Test **endpoint contract**: status, response shape, access, scoping, DB side eff
 | **Scoping** | Endpoints narrowed by request context (company/tenant/user): create out-of-scope row, assert never appears; correct failure contract (`404` vs `403`) for **out-of-scope** detail. Missing scoping test = security gap. |
 | **List** | Actual list shape (e.g. `{"total", "results"}`). Pagination enabled/required: pagination fields + **invalid** pagination input (`400` + error keys). |
 | **Date range** | Required range: missing, bad format, reversed bounds, valid range. |
-| **Filter / search / order** | Only what endpoint exposes. Seed **discriminating** data: search term matching all rows, or expected order equal to insertion order, proves nothing. Included rows, excluded rows, **order** when order is contract. |
+| **Filter / search / order** | Only what endpoint exposes. Seed data where the filter **changes the result**: ≥2 rows, filter matches exactly one, assert the other absent. Search term matching all rows, or expected order equal to insertion order, proves nothing — the test must fail if the filter breaks. **Order** only when order is contract. |
 | **Shared view mixins** | Shared logic changing serializer by action or returning status-only responses — assert contract once per concrete view relying on it. |
 | **Custom payload** | Extra top-level keys, aggregates, derived collections — assert explicitly. |
 | **Validation** | Important error **keys/messages** in response — never stop at `400`. |
 | **Writes** | Success + ≥1 invalid case. Response contract + **persisted** side effects (`refresh_from_db` / re-query); **unchanged** DB on reject. Detail writes (update/delete/custom detail actions): include **out-of-scope pk** case. |
 | **Protected delete** | Delete can fail (related rows, guards): error contract + **DB unchanged**. |
 | **Custom `@action`** | Each action = own contract: success, auth, scoping, validation, side effects as applicable. |
-| **Shared extra actions** | by-pks, relation management, confirm, download, uploaded-only lists — contract + visible state changes. **No** storage-internals tests. |
+| **Shared extra actions** | e.g. bulk-by-pks, relation management, confirm, download, uploaded-only lists — contract + visible state changes. **No** storage-internals tests. |
 | **Query budget** | Heavy list/action endpoints: `assertNumQueries(n)` with enough fixture rows that N+1 breaks count. |
 | **Throttling** | Only when behavior depends on throttling or endpoint auth-heavy/public — not default. |
 
 ## Core patterns
+
+Examples below use one project's base helpers (`_manager_request`, `build_request`, `token=SimpleNamespace(…)`) — substitute your project's equivalents; the shape is the point.
 
 **Direct action call — success for allowed caller:**
 
@@ -156,21 +158,22 @@ def test_check_license_plate_rejects_non_manager_and_anonymous_requests(self):
 - Per-test fixtures every test needs — `setUpTestData` (once per class, transaction-isolated per test).
 - Throttling, storage internals, middleware tests on every view "for completeness".
 
-## Version notes (Python 3.14, Django 6.1, DRF 3.18, Knox 5)
 
-- DRF 3.18: list serializer (`many=True`) validation errors now **dict format** — assert new shape on bulk endpoints, not old list-of-dicts.
-- Knox token auth (project `CachedTokenAuthentication` subclasses it): anonymous = **`401`**, wrong-role authenticated = **`403`**. Project tests assert exactly this split.
-- `setUpTestData` attributes deep-copied per test; Django 6.0+ requires deepcopyable — no clients/connections on class; create `APIClient` in `setUp`.
+## Version notes (apply per project's pins — check pyproject/requirements)
+
+- DRF 3.18+: list serializer (`many=True`) validation errors **dict format** — assert new shape on bulk endpoints, not old list-of-dicts.
+- Token auth (Knox, DRF TokenAuthentication): anonymous = **`401`** (with `WWW-Authenticate`), wrong-role authenticated = **`403`**. Session-only auth: anonymous = `403`. Assert per configured classes.
+- Django 6.0+: `setUpTestData` attributes deep-copied per test, must be deepcopyable — no clients/connections on class; create `APIClient` in `setUp`.
 - Django 6 `DiscoverRunner` supports forkserver — `--parallel auto` cheap; keep tests isolation-safe.
 - DRF 3.17+ enforces `DATA_UPLOAD_MAX_MEMORY_SIZE` for `request.data` parsing — matters only for upload-limit contracts.
 
-## Project conventions
+## Project reference
 
-HuggingCar `api` project: read [references/huggingcar-api.md](references/huggingcar-api.md) before writing tests — test base (`app.shared.tests.ViewTestCase`, fixtures, request builders), shared view mixin inventory, Knox auth per role, test paths, run command. Other projects: find equivalent shared test base + conventions first.
+Project conventions (test base, fixtures, auth classes + statuses, stack pins, paths, run command) live under `references/` — read your project's file before writing tests. Ships [references/huggingcar.md](references/huggingcar.md) for HuggingCar `api`. No matching file: locate shared test base, auth classes, runner conventions in target repo first.
 
 ## Quick verify (gate before finishing — applies even when user asked for one behavior)
 
-Success path for allowed caller. Unauth/forbidden with **exact** status when access matters. Scoping: in-scope visible, out-of-scope excluded + correct detail failure. Pagination + date input where required; filter/search/order when exposed. Create/update/partial/delete/custom actions: DB side effects from persisted state + unchanged DB on reject. Shape includes custom top-level keys. Validation + permission errors by key/message. Disabled actions = expected `403`/`405`. Shared inherited contracts (by-pks, select-all, confirm/download) covered where exposed. Helpers OK; tests small, explicit, behavior-named.
+Success path for allowed caller. Unauth/forbidden with **exact** status when access matters. Scoping: in-scope visible, out-of-scope excluded + correct detail failure. Pagination + date input where required; filter/search/order when exposed. Create/update/partial/delete/custom actions: DB side effects from persisted state + unchanged DB on reject. Shape includes custom top-level keys. Validation + permission errors by key/message. Disabled actions = expected `403`/`405`. Shared inherited contracts (e.g. bulk-by-pks, select-all, confirm/download) covered where exposed. Helpers OK; tests small, explicit, behavior-named.
 
 ## References
 
@@ -178,4 +181,4 @@ Success path for allowed caller. Unauth/forbidden with **exact** status when acc
 - https://www.django-rest-framework.org/api-guide/viewsets/
 - https://www.django-rest-framework.org/community/release-notes/
 - https://www.vintasoftware.com/blog/counting-queries-basic-performance-testing-in-django
-- https://docs.djangoproject.com/en/6.1/topics/testing/tools/
+- https://docs.djangoproject.com/en/stable/topics/testing/tools/

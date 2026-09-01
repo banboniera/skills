@@ -10,11 +10,13 @@ Test serializer contract only — validation errors, normalized/saved state, rep
 ## Workflow
 
 1. Read serializer + everything it touches: fields, `validate_<field>()`, `validate()`, `create()`/`update()`, `to_representation()`, `SerializerMethodField`s, queryset callables, models. Trace context use (`self.context["request"]`, user, company, language). Never test unread code.
-2. Find project serializer test base + neighboring tests before raw `TestCase` boilerplate. Reuse its fixtures, never hand-roll shared models. HuggingCar api repo: read `references/huggingcar-api.md`.
+2. Find project serializer test base + neighboring tests before raw `TestCase` boilerplate. Reuse its fixtures + assertion helpers, never hand-roll shared models. Project-specific conventions (bases, fixtures, run command): read `references/` — see Bundled resources.
 3. Coverage gaps unknown? Run `scripts/untested_serializers.py <project-src-dir>` — lists serializer classes no test references.
-4. Classify serializer, pick coverage from table: writable (form/create/update), read-only (list/detail/select), nested/collection.
+4. Classify serializer, pick coverage from table: writable (form/create/update), read-only (list/detail/select), nested/collection. `scripts/coverage_map.py <serializers.py> [Class]` prints per-class checklist of owned fields/validators/hooks mapped to required tests — supplements step 1, never replaces it: `!`-marked lines flag statically invisible fields (`__all__`, Meta-derived, `get_fields()`); step 1's reading is authoritative.
 5. Write tests: one behavior per test, explicit setup, exact assertions. Mirror test path convention (`<app>/tests/serializers/test_<name>.py`).
 6. Run tests for touched module only, not whole suite.
+
+**Batch coverage** (many untested serializers, subagents available): shard by MODULE, one subagent per module — never per class (siblings share fixtures/base). Each subagent brief: this SKILL.md path + target module + output test path; workers write tests only — syntax check (`ast.parse`) at most; never run suite/linters mid-batch. Orchestrator merges, then runs new test modules **serially** at the end — concurrent `manage.py test` invocations collide on the shared `test_<dbname>` database. No subagents: work through gap list module by module, same rule.
 
 ## What to cover
 
@@ -32,7 +34,7 @@ Test serializer contract only — validation errors, normalized/saved state, rep
 
 Instantiate serializer directly — no view, no HTTP client. Views get own tests; client here adds auth/routing noise, hides which layer broke.
 
-Prefer project test-base helpers over hand-rolled assertions (e.g. `assert_valid_save`, `assert_serializer_error`, `assert_partial_update_result`, `assert_data_has_exact_keys`). Sharper failures, consistent with neighboring tests.
+Prefer project test-base helpers over hand-rolled assertions when the base provides them (error-key asserts, partial-update diffs, exact-key checks) — sharper failures, consistent with neighboring tests. Examples below use plain `unittest` asserts: portable everywhere.
 
 **Valid path — normalization + persisted state:**
 
@@ -57,7 +59,9 @@ def test_rejects_out_of_scope_mechanic(self):
         context=self.context,
     )
 
-    self.assert_serializer_error(serializer, "mechanics", message_fragment="Invalid pk")
+    self.assertFalse(serializer.is_valid())
+    self.assertEqual(set(serializer.errors), {"mechanics"})
+    self.assertIn("Invalid pk", str(serializer.errors["mechanics"][0]))
     self.assertEqual(Part.objects.count(), 0)
 ```
 
@@ -69,7 +73,9 @@ def test_rejects_unknown_role(self):
         data=self._payload(role="not-a-role"), context=self.context
     )
 
-    self.assert_serializer_error(serializer, "role", message_fragment="not a valid choice")
+    self.assertFalse(serializer.is_valid())
+    self.assertEqual(set(serializer.errors), {"role"})
+    self.assertIn("not a valid choice", str(serializer.errors["role"][0]))
 ```
 
 **Boundary testing — one valid payload, break one field per test:**
@@ -88,11 +94,11 @@ def test_partial_update_changes_only_code(self):
     part = self._create_part()
     serializer = PartPartialUpdateSerializer(part, data={"code": "NEW"}, partial=True, context=self.context)
 
-    self.assert_partial_update_result(
-        serializer,
-        expected_changed={"code": "NEW"},
-        expected_unchanged={"quantity": Decimal("2.0")},
-    )
+    self.assertTrue(serializer.is_valid(), serializer.errors)
+    serializer.save()
+    part.refresh_from_db()
+    self.assertEqual(part.code, "NEW")
+    self.assertEqual(part.quantity, Decimal("2.0"))  # untouched field survived
 ```
 
 **Read serializer — exact keys against known fixtures:**
@@ -102,7 +108,7 @@ def test_list_representation(self):
     part = self._create_part()
     data = PartListSerializer(part, context=self.context).data
 
-    self.assert_data_has_exact_keys(data, ("id", "name", "code", "quantity", "status"))
+    self.assertEqual(set(data.keys()), {"id", "name", "code", "quantity", "status"})
     self.assertEqual(data["name"], "Brake Pad")  # translated via context language
 ```
 
@@ -118,14 +124,12 @@ def test_detail_representation_query_budget(self):
     self.assertEqual(data["labels"], [self.vehicle_label.pk])
 ```
 
-**Context — pass whenever behavior depends on it.** Request-like object enough; full `APIRequestFactory` only when serializer reads real request attributes:
+**Context — pass whenever behavior depends on it.** Request-like object enough (project base often provides a builder); full `APIRequestFactory` only when serializer reads real request attributes:
 
 ```python
 def setUp(self):
-    self.request = self.build_serializer_request_context(
-        self.company, user=self.manager_user, employee=self.manager
-    )
-    self.context = {"request": self.request}
+    request = SimpleNamespace(user=self.manager_user, auth=SimpleNamespace(company=self.company))
+    self.context = {"request": request}
 ```
 
 ## Anti-patterns
@@ -138,17 +142,18 @@ def setUp(self):
 - Shared mutable state between tests; each test builds own payload.
 - Re-reading `serializer.data` after mutation — `.data` cached on first access; re-instantiate serializer to observe changes.
 
-## Version notes (Python 3.14, Django 6.1, DRF 3.18)
+## Version notes
 
 - `setUpTestData` attrs deep-copied per test since Django 3.2; Django 6.0 **requires** deepcopyable — mutating fixture in test safe + isolated; never stash non-copyable objects (open files, connections) on class.
 - DRF 3.16+ generates uniqueness validators from `Meta.constraints` `UniqueConstraint` (nullable + conditional) — most conflicts surface in `serializer.errors`, not `IntegrityError`.
-- Queryset comparisons: `assertQuerySetEqual` (capital S) with real objects; string/`repr` comparison gone.
+- Queryset comparisons: `assertQuerySetEqual` (capital S) with real objects; string/`repr` comparison gone (Django 5.1+).
 - DRF 3.17/3.18: no serializer contract change — Django 6 + Python 3.14 support, security fixes.
 
 ## Bundled resources
 
-- `references/huggingcar-api.md` — HuggingCar api project: test bases, helper list, fixtures, paths, run command. Read when working in that repo.
+- `references/huggingcar.md` — HuggingCar api project: stack pins, test bases, helper list, fixtures, paths, run command. Read when working in that repo.
 - `scripts/untested_serializers.py` — print serializer classes unreferenced by any test. Usage: `python scripts/untested_serializers.py /path/to/project/src`.
+- `scripts/coverage_map.py` — per-class checklist of owned fields/validators/hooks mapped to required tests. Usage: `python scripts/coverage_map.py path/to/serializers.py [ClassName]`.
 
 ## Quick verify (before finishing)
 

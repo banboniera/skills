@@ -10,32 +10,41 @@ Test **model contract** — validation rules, constraint enforcement, save/delet
 ## Workflow
 
 1. **Read model and everything it touches** — fields, validators, `clean()`, `Meta.constraints`, `save()`/`delete()` overrides, custom managers/querysets, signals, `transaction.on_commit()` calls, related models. Never test code not read.
-2. **Find project's model test base.** Look for existing base class before raw `TestCase` boilerplate (this codebase: `app.shared.tests.ModelTestCase` — see [Project conventions](#project-conventions)). Reuse its fixtures and assertion helpers, never hand-roll.
-3. **Classify what model owns**; pick coverage from table below.
-4. **Write tests**: one behavior per test, explicit setup, exact assertions. Mirror app's test path convention (`<app>/tests/models/test_<name>.py`).
-5. **Run tests** for touched module only, not whole suite.
+2. **Find project's model test base.** Look for existing base class before raw `TestCase` boilerplate; reuse its fixtures and assertion helpers, never hand-roll. Project-specific conventions (bases, fixtures, run command): read `references/` — see Bundled resources.
+3. Coverage gaps unknown? Run `scripts/untested_models.py <project-src-dir>` — lists model classes no test references (abstract bases show up here; test them through a concrete subclass).
+4. **Classify what model owns**; pick coverage from table below. `scripts/coverage_map.py <models.py> [Class]` prints per-class checklist — validators, save/delete overrides, constraints, branching properties, `on_commit` — mapped to required tests.
+5. **Write tests**: one behavior per test, explicit setup, exact assertions. Mirror app's test path convention (`<app>/tests/models/test_<name>.py`).
+6. **Run tests** for touched module only, not whole suite.
+
+**Batch coverage** (many untested models, subagents available): shard by MODULE, one subagent per module — never per class (abstract bases + their concrete subclasses belong to one worker). Each subagent brief: this SKILL.md path + target module + output test path; workers write tests only — syntax check (`ast.parse`) at most; never run suite/linters mid-batch. Orchestrator merges, then runs new test modules **serially** at the end — concurrent `manage.py test` invocations collide on the shared `test_<dbname>` database. No subagents: work through gap list module by module, same rule.
 
 ## What to cover
 
 | Area | Do |
 |------|-----|
-| **Validation** | One passing `full_clean()` when model has custom validation, validators, choices, or inherited rules. One failing `full_clean()` per real invalid branch: `clean()`, cross-field rules, validators, choices, boundaries. Never assume `save()` validates — it doesn't. Pin failures to field via `message_dict`. |
+| **Validation** | One passing `full_clean()` when model has custom validation, validators, choices, or inherited rules. One failing `full_clean()` per real invalid branch: `clean()`, cross-field rules, validators, choices, boundaries. `save()` never validates: validator-guarded field gets one test documenting the bypass (invalid value saves raw without `full_clean()`) — pins the trust boundary callers rely on. Pin failures to field via `message_dict`. |
 | **Constraints** | Each `unique`, `UniqueConstraint`, `CheckConstraint`, one-to-one rule: validation-layer test if writes route through `full_clean()`; DB-write-failure test when database is real enforcement layer (bulk paths, race windows). Often both. Soft-delete model with unconditional unique constraint: soft-deleted row still occupies constraint, and validation checks via default manager may miss conflict DB insert hits — test that interaction (fix is condition=Q(deleted_at__isnull=True) or similar). |
 | **save()** | Every custom effect: trim, normalize, derived fields, linked defaults, UUIDs, timestamps, `update_fields` when it changes outcome — state-tracking overrides (became-ready style) misfire when `update_fields` omits tracked field: test that path. `bulk_create`/`bulk_update`/`QuerySet.update()` bypass `save()` and signals entirely — callers use bulk paths: one test stating expected behavior there. After save, reload and assert **stored** values. |
 | **delete()** | Custom delete: soft/hard/restore, protected paths (`ProtectedError`/`RestrictedError`), external side effects. `QuerySet.delete()` does **not** call instance `delete()` — model overrides delete: test queryset path too (or custom queryset that mirrors it). |
 | **Relations** | Only where model defines behavior: cascade, `PROTECT`, `SET_NULL`, one-to-one limits, m2m state that matters, cross-model validation. |
 | **Managers / querysets** | Custom methods: inclusion *and* exclusion (rows that must not appear — other tenant, soft-deleted), ordering, prefetch. Query count only if count is part of contract. |
+| **Computed reads** | Properties/methods with branching or calculation: read contract — test boundaries. Trivial delegation (`return self.x`): skip. `GeneratedField`/`db_default`: DB computes value — assert **after** `refresh_from_db()`, never on in-memory instance. Annotations encoding business rules: assert resulting rows/values, never SQL text. |
 | **Inheritance** | Shared base behavior only if concrete model's contract depends on it (soft-delete, active-only managers). |
 | **Files** | Project rules: metadata, helpers, parent rules, delete behavior — not Django storage internals. |
 | **on_commit** | Model uses `transaction.on_commit()`: assert with `captureOnCommitCallbacks()`. `TransactionTestCase` only if `TestCase` cannot prove it. |
+| **Signals** | Receivers the app registers on model: trigger action, assert **effect** (row/state change); complex receiver: test function directly + one test proving connection. Bulk paths (`bulk_create`, `QuerySet.update()`) never fire save signals — receiver's effect load-bearing: test the bypass path expectation too. Fixture noise: disconnect/mute receivers around setup, never globally. |
 
 **Skip:** plain field declarations with no project rule, Django internals, coverage already proven at serializer or view layer.
 
 ## Core patterns
 
-**Builder pair — unsaved instance for validation tests, validated create for rest:**
+**Class fixtures + builder pair — `setUpTestData` for shared rows, unsaved instance for validation tests, validated create for rest:**
 
 ```python
+@classmethod
+def setUpTestData(cls):  # once per class; per-test isolation via deepcopy
+    cls.workshop = cls.setup_workshop()
+
 def _unsaved_order(self, **kwargs):
     attrs = {"workshop": self.workshop, "number": "RO-1", "total": Decimal("10")}
     attrs.update(kwargs)
@@ -130,25 +139,19 @@ def test_ready_transition_enqueues_notification_on_commit(self, mock_delay):
 
 - `full_clean()` validates `Meta.constraints` since Django 4.1 (opt out per-call: `validate_constraints=False`); `save()` never validates anything.
 - `CheckConstraint` takes `condition=` — `check=` kwarg removed in Django 6.0. Read constraints from `Meta` before writing tests; never guess names.
+- `GeneratedField` (Django 5.0+) and `db_default`: value computed by database — in-memory instance stale until `refresh_from_db()`.
 - `setUpTestData` class attributes deep-copied per test since Django 3.2; Django 6.0 **requires** deepcopyable — in-memory fixture mutation isolated, but never stash non-copyable objects (open files, connections) on class.
 - Queryset comparisons: `assertQuerySetEqual` (capital S) with real objects.
 
-## Project conventions
+## Bundled resources
 
-HuggingCar `api` project:
-
-- Base class: `app.shared.tests.ModelTestCase` — read before writing tests; provides:
-  - `assert_full_clean_raises(instance)` — expects `ValidationError`
-  - `assert_integrity_error_on_second_create(create_first, create_duplicate)` — DB-layer constraint check with transaction handling
-  - hard-delete, cascade, query-budget helpers (`pk_set`, `assert_get_pks_respects_budget`)
-- Fixtures on `BaseTestCase`: `setup_company`, `setup_other_company`, `setup_service`, `setup_employee`, `setup_user`, `setup_user_company_detail`, … — always prefer over raw `Model.objects.create` for shared models.
-- Test location mirrors model's app: `src/<app>/tests/models/test_<name>.py` (`users/tests/models/test_user.py`).
-- Run: `DJANGO_ROLE=<role> rtk uv run python manage.py test <dotted.test.module> --parallel auto` from `src/`.
-- Test tags: CI splits suites by role — manager runs domain apps with `--exclude-tag=worker`, worker role reruns them with `--tag=worker`. Model `on_commit` tests patch task's `.delay`, stay **untagged** (prove enqueue-on-commit, run in manager suite); `@tag("worker")` reserved for Celery task-body tests (`test_tasks.py`), outside this skill's scope.
+- `scripts/coverage_map.py` — per-class checklist of validators, overrides, constraints, properties mapped to required tests. Usage: `python scripts/coverage_map.py path/to/models.py [ClassName]`.
+- `references/huggingcar.md` — HuggingCar api project: `ModelTestCase` helpers, fixtures, untested abstract bases, test tags, paths, run command. Read when working in that repo.
+- `scripts/untested_models.py` — print model classes unreferenced by any test. Usage: `python scripts/untested_models.py /path/to/project/src`.
 
 ## Quick verify (before finishing)
 
-Meaningful validation has pass + fail `full_clean()` tests pinned to field; constraints tested at enforcing layer(s), DB-layer failures inside nested atomic; custom save/delete effects asserted after reload; delete covered on instance *and* queryset paths when overridden; managers assert exclusion, not just inclusion; `on_commit` proven via `captureOnCommitCallbacks`; tests small, independent, named by behavior.
+Meaningful validation has pass + fail `full_clean()` tests pinned to field; constraints tested at enforcing layer(s), DB-layer failures inside nested atomic; custom save/delete effects asserted after reload; delete covered on instance *and* queryset paths when overridden; managers assert exclusion, not just inclusion; branching properties and `GeneratedField`/`db_default` asserted after reload; registered receivers proven by effect (bypass paths stated); `on_commit` proven via `captureOnCommitCallbacks`; tests small, independent, named by behavior.
 
 ## References
 

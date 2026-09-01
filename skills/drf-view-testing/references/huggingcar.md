@@ -35,8 +35,21 @@ Role settings pick auth class (`CompanyTokenAuthentication` manager, `CustomerTo
 
 Permission roles (`app/permissions.py`): `IsManager` passes for manager, director, **and** superuser; `IsDirector` for director + superuser. All read `request.auth.employee` via `_get_employee`, which returns `None` when the token lacks an employee — then permission fails **before** the `is_superuser` check. Superuser tests must use `setup_superuser_with_detail` and pass `employee` in the token; `is_superuser` alone still gets `403`. "Every allowed role" for a manager endpoint = manager, director, superuser; rejected = plain employee (`403`), anonymous (`401`).
 
+## Cross-role coverage (deliberate duplication)
+
+Role APIs (`manager_api`/`mechanic_api`/`customer_api`/`worker_api`) reuse classes across roles — a class born in one role (or `app/shared`) gets consumed by others. Rule: the origin role carries full coverage, AND **every consuming role duplicates that full coverage in its own test tree**. Never deduplicate into one place. Reason: each role's suite runs separately (`DJANGO_ROLE=<role>`), so a change to reused code must fail **immediately in every affected role's own suite** — that failure is the signal that the change has cross-role impact. Practical rules:
+
+- Adding tests for a reused class: replicate the full test set into each role that uses it (adapted to that role's auth/context), not just the origin role.
+- Changing reused code: expect and update duplicated tests in every consuming role; a green origin suite alone proves nothing.
+- Finding consumers: grep the class name across `src/*_api/` before deciding coverage scope.
+
 ## Paths & running
 
 - Test path mirrors view: `src/<role_api>/<app>/tests/views/test_<name>.py`.
 - Run from `src/`: `DJANGO_ROLE=<role> uv run python manage.py test <dotted.test.module> --parallel auto` (`role` = `manager`/`mechanic`/`customer`/`worker`, owner of changed code).
 - CI uses `app.settings.ci`: in-memory sqlite, no migrations, MD5 hasher, eager Celery.
+- Action audit for this project: `python <skill-dir>/scripts/audit_actions.py <view.py> [test.py] --shared src/app/shared/mixins.py --shared src/app/shared/views.py` (from api repo root).
+
+## Stack pins
+
+Python 3.14, Django 6.1, DRF 3.18, django-filter 26, Knox 5 — all SKILL.md version notes apply.
