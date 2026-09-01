@@ -40,3 +40,8 @@ Permission roles (`app/permissions.py`): `IsManager` passes for manager, directo
 - Test path mirrors view: `src/<role_api>/<app>/tests/views/test_<name>.py`.
 - Run from `src/`: `DJANGO_ROLE=<role> uv run python manage.py test <dotted.test.module> --parallel auto` (`role` = `manager`/`mechanic`/`customer`/`worker`, owner of changed code).
 - CI uses `app.settings.ci`: in-memory sqlite, no migrations, MD5 hasher, eager Celery.
+- Action audit for this project: `python <skill-dir>/scripts/audit_actions.py <view.py> [test.py] --shared src/app/shared/mixins.py --shared src/app/shared/views.py` (from api repo root).
+
+## Stack pins
+
+Python 3.14, Django 6.1, DRF 3.18, django-filter 26, Knox 5 — all SKILL.md version notes apply.
