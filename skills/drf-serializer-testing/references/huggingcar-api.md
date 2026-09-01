@@ -33,6 +33,14 @@ Employee flags matter for scoped querysets: `is_manager=True` / `is_mechanic=Tru
 - Serializer-level query budgets are an established convention: wrap `.data` in `assertNumQueries(N)`; prefetched instance gets `assertNumQueries(0)` (precedent: `manager_api/vehicles/tests/serializers/test_vehicle.py`).
 - Ruff ignores `PT009`/`PT027` in tests — unittest-style asserts are the convention.
 
+## Cross-role coverage (deliberate duplication)
+
+Role APIs (`manager_api`/`mechanic_api`/`customer_api`/`worker_api`) reuse serializers across roles — a serializer born in one role (or `app/shared`) gets consumed by others. Rule: the origin role carries full coverage, AND **every consuming role duplicates that full coverage in its own test tree**. Never deduplicate into one place. Reason: each role's suite runs separately (`DJANGO_ROLE=<role>`), so a change to reused code must fail **immediately in every affected role's own suite** — that failure is the signal that the change has cross-role impact. Practical rules:
+
+- Adding tests for a reused serializer: replicate the full test set into each role that uses it (adapted to that role's auth/context), not just the origin role.
+- Changing reused code: expect and update duplicated tests in every consuming role; a green origin suite alone proves nothing.
+- Finding consumers: grep the class name across `src/*_api/` before deciding coverage scope.
+
 ## Run
 
 From `src/`:
