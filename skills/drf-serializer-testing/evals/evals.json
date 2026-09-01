@@ -1,0 +1,50 @@
+{
+  "skill_name": "drf-serializer-testing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add serializer tests for ServiceOrderManagerAssignmentFormSerializer in src/manager_api/documents/serializers/service_order/form.py — it scopes the manager queryset to the request company and only allows managers. There are no tests for it yet.",
+      "expected_output": "A test module inheriting the project serializer test base covering: valid payload with in-scope manager, out-of-scope manager rejected (other company), non-manager employee rejected, invalid role choice rejected — errors asserted by key, context carrying the request company.",
+      "files": [],
+      "assertions": [
+        "File is syntactically valid Python",
+        "Inherits the project's SerializerTestCase base from app.shared.tests",
+        "Instantiates serializer with context containing a request whose auth.company is set",
+        "Tests that a manager from another company is rejected with an error on the 'manager' key",
+        "Tests that a non-manager employee of the same company is rejected",
+        "Tests that an invalid role choice is rejected with an error on the 'role' key",
+        "Valid-payload test asserts resolved validated_data, not just is_valid() returning True",
+        "No invalid-payload test stops at assertFalse(is_valid()) without inspecting serializer.errors"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "PartInStockExportSerializer in src/manager_api/documents/serializers/part.py formats aggregated in-stock part rows for export. Write tests that pin down exactly what it outputs.",
+      "expected_output": "Read-serializer tests asserting the exact key set (name, code, quantity), that it serializes aggregated dicts (int name, summed Decimal quantity) rather than Part instances, and correct values against known fixture data.",
+      "files": [],
+      "assertions": [
+        "File is syntactically valid Python",
+        "Asserts the exact output key set {'name', 'code', 'quantity'}",
+        "At least one test serializes an aggregated dict row (not a Part model instance)",
+        "Asserts name is output as an integer and quantity as a decimal value",
+        "Output values are matched against explicit known fixture data"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add tests for the untested shared serializers in src/app/shared/serializers.py — SelectSerializer's label logic, ContentTypeSelectSerializer, and UserTaxIDSerializer.",
+      "expected_output": "Tests asserting SelectSerializer label fallback (select_representation vs name) with exact {value, label} keys, ContentTypeSelectSerializer label from ContentType.model, and UserTaxIDSerializer valid + invalid payloads with error keys asserted, plus save-path coverage.",
+      "files": [],
+      "assertions": [
+        "File is syntactically valid Python",
+        "Uses SerializerTestCase (or a project test base) with setUpTestData fixtures",
+        "SelectSerializer label: tests BOTH branches — select_representation used when present, name fallback otherwise",
+        "Select output asserts exact key set {'value', 'label'} and that value equals the instance pk",
+        "ContentTypeSelectSerializer: asserts label equals the ContentType model string for a known content type",
+        "UserTaxIDSerializer: at least one valid and one invalid payload with serializer.errors key asserted",
+        "No invalid-payload test stops at assertFalse(is_valid()) without inspecting serializer.errors",
+        "UserTaxIDSerializer (writable ModelSerializer): covers save paths — create (incl. save(user=...) parent-supplied relation), and update or partial update with persisted state asserted"
+      ]
+    }
+  ]
+}

@@ -2,6 +2,8 @@
 
 Repo layout: Django project under `src/`, role-split APIs (`manager_api`, `mechanic_api`, `customer_api`) over shared domain apps (`documents`, `vehicles`, `users`, `companies`).
 
+Stack (from `src/uv.lock`): Python 3.14, Django 6.1, DRF 3.18.0, django-filter 26.1, django-rest-knox 5.1.
+
 ## Test bases (`src/app/shared/tests.py`)
 
 Read this file before writing tests. `SerializerTestCase` provides:
