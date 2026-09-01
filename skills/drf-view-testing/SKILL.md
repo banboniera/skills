@@ -169,7 +169,7 @@ def test_check_license_plate_rejects_non_manager_and_anonymous_requests(self):
 
 ## Project reference
 
-Project conventions (test base, fixtures, auth classes + statuses, stack pins, paths, run command) live under `references/` — read your project's file before writing tests. Ships [references/huggingcar-api.md](references/huggingcar-api.md) for HuggingCar `api`. No matching file: locate shared test base, auth classes, runner conventions in target repo first.
+Project conventions (test base, fixtures, auth classes + statuses, stack pins, paths, run command) live under `references/` — read your project's file before writing tests. Ships [references/huggingcar.md](references/huggingcar.md) for HuggingCar `api`. No matching file: locate shared test base, auth classes, runner conventions in target repo first.
 
 ## Quick verify (gate before finishing — applies even when user asked for one behavior)
 

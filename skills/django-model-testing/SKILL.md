@@ -146,7 +146,7 @@ def test_ready_transition_enqueues_notification_on_commit(self, mock_delay):
 ## Bundled resources
 
 - `scripts/coverage_map.py` — per-class checklist of validators, overrides, constraints, properties mapped to required tests. Usage: `python scripts/coverage_map.py path/to/models.py [ClassName]`.
-- `references/huggingcar-api.md` — HuggingCar api project: `ModelTestCase` helpers, fixtures, untested abstract bases, test tags, paths, run command. Read when working in that repo.
+- `references/huggingcar.md` — HuggingCar api project: `ModelTestCase` helpers, fixtures, untested abstract bases, test tags, paths, run command. Read when working in that repo.
 - `scripts/untested_models.py` — print model classes unreferenced by any test. Usage: `python scripts/untested_models.py /path/to/project/src`.
 
 ## Quick verify (before finishing)

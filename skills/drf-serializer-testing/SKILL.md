@@ -151,7 +151,7 @@ def setUp(self):
 
 ## Bundled resources
 
-- `references/huggingcar-api.md` — HuggingCar api project: stack pins, test bases, helper list, fixtures, paths, run command. Read when working in that repo.
+- `references/huggingcar.md` — HuggingCar api project: stack pins, test bases, helper list, fixtures, paths, run command. Read when working in that repo.
 - `scripts/untested_serializers.py` — print serializer classes unreferenced by any test. Usage: `python scripts/untested_serializers.py /path/to/project/src`.
 - `scripts/coverage_map.py` — per-class checklist of owned fields/validators/hooks mapped to required tests. Usage: `python scripts/coverage_map.py path/to/serializers.py [ClassName]`.
 
