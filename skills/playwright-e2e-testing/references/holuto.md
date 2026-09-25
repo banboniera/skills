@@ -1,4 +1,4 @@
-# HuggingCar Frontend Conventions
+# Holuto Frontend Conventions
 
 Stack: Umi Max (`@umijs/max`), React 19, Ant Design + ProComponents, Redux Toolkit + redux-persist, `react-big-calendar`, Bun, Playwright ~1.62. Suite architecture: **fully mocked backend** — no real API in e2e; specs assert visible UI **plus** recorded backend request contract.
 

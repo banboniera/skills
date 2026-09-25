@@ -1,4 +1,4 @@
-# HuggingCar api project conventions
+# Holuto api project conventions
 
 Repo layout: Django project under `src/`, shared domain apps (`documents`, `vehicles`, `users`, `companies`) with abstract bases in `app/shared/models.py` and per-app `models/common.py`.
 

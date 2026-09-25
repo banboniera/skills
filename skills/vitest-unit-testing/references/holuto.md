@@ -1,4 +1,4 @@
-# HuggingCar frontend — Vitest specifics
+# Holuto frontend — Vitest specifics
 
 React 19 + @umijs/max + antd 6 + @ant-design/pro-components + RTK 2 (RTK Query) + dayjs + @react-pdf/renderer. Vitest 4, happy-dom, RTL 16, user-event 14, jest-dom. Biome formatting: tabs, single quotes, no semicolons.
 

@@ -51,7 +51,7 @@ export async function seedAuthState(page: Page, user: TestUser, role = 'manager'
 }
 ```
 
-`addInitScript` runs before app code on every navigation — seed, then `goto`. Pair with role-scoped page-open helper: seeds auth + installs API mock dispatcher + waits for app shell in one call (production example: huggingcar.md). Every spec then starts: `const requests = await openManagerPage(page, path, { mockApi })`.
+`addInitScript` runs before app code on every navigation — seed, then `goto`. Pair with role-scoped page-open helper: seeds auth + installs API mock dispatcher + waits for app shell in one call (production example: holuto.md). Every spec then starts: `const requests = await openManagerPage(page, path, { mockApi })`.
 
 ## Data seeding (real backend)
 

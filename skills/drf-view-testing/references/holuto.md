@@ -1,6 +1,6 @@
-# HuggingCar `api` project conventions
+# Holuto `api` project conventions
 
-Read when writing view tests in /…/HuggingCar/api.
+Read when writing view tests in /…/Holuto/api.
 
 ## Test base
 

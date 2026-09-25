@@ -11,7 +11,7 @@ Test **observable contract** — what function return, what user see and trigger
 
 ## Workflow
 
-1. **Inspect project first**: `vitest.config.ts` (environment, setupFiles, aliases), setup file (what already global — matchers, cleanup, storage stubs), shared test helpers, 2–3 neighboring `*.test.*` files. Extend local patterns; never add parallel convention (no new render wrappers, no MSW, no snapshot suites if project has none). HuggingCar frontend: read [references/huggingcar.md](references/huggingcar.md) before writing anything.
+1. **Inspect project first**: `vitest.config.ts` (environment, setupFiles, aliases), setup file (what already global — matchers, cleanup, mock stubs), shared test helpers, 2–3 neighboring `*.test.*` files. Extend local patterns; never add parallel convention (no new render wrappers, no MSW, no snapshot suites if project has none). Holuto frontend: read [references/holuto.md](references/holuto.md) before writing anything.
 2. **Classify unit** — pure function, reducer/slice, RTK Query endpoint/middleware, component, hook, page — pick coverage from table below.
 3. **Plan mocks at boundary only**: network, module side effects (Sentry/analytics), heavy third-party children, time. Mock mechanics (hoisting, `vi.hoisted`, partial mocks, fake timers): [references/mocking.md](references/mocking.md). Never mock unit under test or framework hooks wiring it.
 4. **Write tests**: one behavior per `it`, behavior-named, colocated (`Foo.test.tsx` beside `Foo.tsx`). Semantic queries, awaited `user-event`, exact assertions.
@@ -146,7 +146,7 @@ Fetch mock record `new Request(input, init)` (method, URL, cloned body text), re
 ## Bundled resources
 
 - [references/mocking.md](references/mocking.md) — `vi.mock` hoisting, `vi.hoisted`, dynamic-import ordering, partial mocks, `vi.mocked` typing, spies vs mocks, fake timers/system time, global stubs. Read when any mocking beyond plain `vi.fn` involved.
-- [references/huggingcar.md](references/huggingcar.md) — HuggingCar frontend: shared `@/tests` helpers, setup guarantees, antd/umi/pro-components/react-pdf mock recipes, exemplar files, run commands. Read when working in that repo.
+- [references/holuto.md](references/holuto.md) — Holuto frontend: shared `@/tests` helpers, setup guarantees, antd/umi/pro-components/react-pdf mock recipes, exemplar files, run commands. Read when working in that repo.
 - [scripts/untested_files.ts](scripts/untested_files.ts) — list source files with no colocated test. Usage: `bun scripts/untested_files.ts /path/to/frontend/src`.
 
 ## Quick verify (gate before finishing)

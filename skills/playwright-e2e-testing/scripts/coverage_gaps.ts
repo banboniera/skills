@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Coverage-gap report for HuggingCar-style Playwright e2e suites.
+ * Coverage-gap report for Holuto-style Playwright e2e suites.
  *
  * Reports, per role directory under e2e/:
  *   1. no smoke spec at all

@@ -1,4 +1,4 @@
-# HuggingCar api project conventions
+# Holuto api project conventions
 
 Repo layout: Django project under `src/`, role-split APIs (`manager_api`, `mechanic_api`, `customer_api`) over shared domain apps (`documents`, `vehicles`, `users`, `companies`).
 

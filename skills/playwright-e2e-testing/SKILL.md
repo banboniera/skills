@@ -11,7 +11,7 @@ Test **user-visible route behavior**: what user sees and does at URL, plus — i
 
 ## Workflow
 
-1. **Inspect project first**: `playwright.config.ts` (baseURL, webServer, projects, use), package manager + scripts, existing `e2e/`/`tests/` helpers and 2–3 neighboring specs. Extend local patterns; never introduce parallel framework. HuggingCar frontend: read [references/huggingcar.md](references/huggingcar.md) before writing anything.
+1. **Inspect project first**: `playwright.config.ts` (baseURL, webServer, projects, use), package manager + scripts, existing `e2e/`/`tests/` helpers and 2–3 neighboring specs. Extend local patterns; never introduce parallel framework. Holuto frontend: read [references/holuto.md](references/holuto.md) before writing anything.
 2. **Classify suite**: mocked backend (route intercepts, seeded client state) vs real backend (API seeding, storageState auth). Classification decides auth + data strategy — see [references/fixtures-auth.md](references/fixtures-auth.md).
 3. **Read exact reference needed** (table below). Don't guess API shapes.
 4. **Write specs**: mocks before navigation, accessible locators, one user behavior per test, behavior-named. Assert visible UI first, then request side effects. Cover per "What to cover" table — happy path alone is not a page spec: form/mutation pages need at least the invalid-input case (visible error + no request). Broken validation ships silently otherwise; it's the cheapest high-value second test.
@@ -26,7 +26,7 @@ Test **user-visible route behavior**: what user sees and does at URL, plus — i
 | Auth (storageState / seeded state), fixtures, POM-vs-helpers | [references/fixtures-auth.md](references/fixtures-auth.md) |
 | Failing/flaky test, traces, deterministic time | [references/debugging-flaky.md](references/debugging-flaky.md) |
 | Config, workers, sharding, reporters, CI pipeline | [references/ci.md](references/ci.md) |
-| HuggingCar frontend specifics (helpers, commands, conventions) | [references/huggingcar.md](references/huggingcar.md) |
+| Holuto frontend specifics (helpers, commands, conventions) | [references/holuto.md](references/holuto.md) |
 | Which pages lack coverage (smoke drift, smoke-only, missing matrices) | run [scripts/coverage_gaps.ts](scripts/coverage_gaps.ts) against frontend root |
 
 ## What to cover
