@@ -1,0 +1,22 @@
+[
+  {"query": "ok I just added a StorageReceiptFormSerializer in src/manager_api/documents/serializers/storage_receipt.py with a custom validate() that checks supplier belongs to the company — can you add tests for it?", "should_trigger": true},
+  {"query": "we got a prod bug where customers could attach vehicles from other companies. the vehicle field queryset in VehicleSelectSerializer is supposed to filter by request company. write a regression test", "should_trigger": true},
+  {"query": "add tests for the new expense serializers", "should_trigger": true},
+  {"query": "my PartListSerializer output changed after the last refactor and the mobile app broke. pin down its exact output shape with tests so this can't happen silently again", "should_trigger": true},
+  {"query": "Necesito tests para el serializer de facturas en customer_api, sobre todo la validación de validate_tax_id y el partial update", "should_trigger": true},
+  {"query": "cover src/mechanic_api/documents/serializers/labor.py with unit tests — the LaborFormSerializer has validate_duration and a mechanics M2M that gets set in create()", "should_trigger": true},
+  {"query": "is_valid() returns True in my test but validated_data has the wrong decimal — how should I be testing quantity coercion in InvoiceLineSerializer?", "should_trigger": true},
+  {"query": "teammate says our serializer tests are weak because they only check assertFalse(is_valid()). audit test_part.py and improve the assertions", "should_trigger": true},
+  {"query": "write tests proving ServiceOrderDetailSerializer doesn't do N+1 queries when serializing with the labels prefetched", "should_trigger": true},
+  {"query": "the nested items payload in OrderFormSerializer accepts pk + new rows on update, need tests for what gets created vs deleted", "should_trigger": true},
+  {"query": "add tests for the PartViewSet — mainly the list endpoint filters and the 403 when a mechanic hits the manager route", "should_trigger": false},
+  {"query": "write unit tests for the Part model's clean() method and the unique constraint on code per company", "should_trigger": false},
+  {"query": "our DRF endpoint returns 500 when body is empty json, can you debug the view and fix it", "should_trigger": false},
+  {"query": "create a serializer for the new WarrantyClaim model with company-scoped querysets like the other form serializers", "should_trigger": false},
+  {"query": "how do I serialize a queryset to JSON for a management command export? no DRF involved, plain json.dumps is fine", "should_trigger": false},
+  {"query": "add pytest fixtures for company/employee setup that our API integration tests can share", "should_trigger": false},
+  {"query": "the pydantic schema in our FastAPI microservice rejects valid payloads, write tests for the validator", "should_trigger": false},
+  {"query": "test the Django form validation on the admin page for parts — it's a ModelForm not DRF", "should_trigger": false},
+  {"query": "benchmark PartListSerializer vs values() for the export endpoint and tell me which is faster", "should_trigger": false},
+  {"query": "migrate our serializer tests from unittest to pytest style with parametrize", "should_trigger": false}
+]

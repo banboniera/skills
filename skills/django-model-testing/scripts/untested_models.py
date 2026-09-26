@@ -1,53 +1,58 @@
 #!/usr/bin/env python3
-"""List Django model classes no test file references.
+"""List Django model classes no test file mentions.
 
 Usage: python untested_models.py <project-src-dir>
 
-Scans models.py modules and models/ packages for class definitions whose
-base list looks like a model (contains `models.` or a name ending in
-`Model`), then reports classes whose name never appears in any file under
-a tests/ directory. Name-based heuristic: abstract bases and models only
-exercised through subclasses may be false positives — judge the output.
+Finds classes in models.py modules and models/ packages whose bases look like
+models (a `models.` attribute or a name ending in `Model`), then reports the
+ones whose name appears in no .py file under a tests/ directory or named
+test_*.py. Name matching only: an abstract base shows up even when its
+subclasses are tested, so judge the list.
 """
 
+import ast
 import re
 import sys
 from pathlib import Path
 
-CLASS_RE = re.compile(r"^class (\w+)\(([^)]*)\)\s*:", re.M)
-BASE_RE = re.compile(r"(?:\bmodels\.\w+|\w*Model\b)")
-SKIP_PARTS = {".venv", "venv", "node_modules", "migrations"}
+SKIP_PARTS = {".venv", "venv", "node_modules", "migrations", "site-packages"}
+
+
+def looks_like_model(cls: ast.ClassDef) -> bool:
+    for base in cls.bases:
+        text = ast.unparse(base)
+        if text.startswith("models.") or text.split(".")[-1].endswith("Model"):
+            return True
+    return False
+
+
+def is_test(path: Path) -> bool:
+    return "tests" in path.parts or path.name.startswith("test_")
 
 
 def main(root: Path) -> int:
-    model_files = {
-        p
-        for p in root.rglob("*.py")
-        if not SKIP_PARTS & set(p.parts)
-        and "tests" not in p.parts
-        and (p.name == "models.py" or "models" in p.parts)
-    }
+    sources = [p for p in root.rglob("*.py") if not SKIP_PARTS & set(p.parts)]
     defined: dict[str, Path] = {}
-    for path in model_files:
-        for match in CLASS_RE.finditer(path.read_text(errors="replace")):
-            name, bases = match.groups()
-            if name != "Meta" and BASE_RE.search(bases):
-                defined[name] = path
+    for path in sources:
+        if is_test(path) or not (path.name == "models.py" or "models" in path.parts):
+            continue
+        try:
+            tree = ast.parse(path.read_text(errors="replace"))
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef) and looks_like_model(node):
+                defined[node.name] = path
 
-    test_text = "".join(
-        p.read_text(errors="replace")
-        for p in root.rglob("tests/**/*.py")
-        if not SKIP_PARTS & set(p.parts)
-    )
-
+    test_text = "\n".join(p.read_text(errors="replace") for p in sources if is_test(p))
     untested = sorted(
         (str(path.relative_to(root)), name)
         for name, path in defined.items()
-        if name not in test_text
+        if not re.search(rf"\b{re.escape(name)}\b", test_text)
     )
     for path, name in untested:
         print(f"{path}: {name}")
-    print(f"\n{len(defined)} model classes, {len(untested)} unreferenced by tests", file=sys.stderr)
+    print(f"\n{len(defined)} model classes, {len(untested)} not mentioned by any test", file=sys.stderr)
     return 0
 
 

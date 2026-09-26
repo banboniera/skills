@@ -1,0 +1,82 @@
+[
+  {
+    "query": "add tests for the new VehicleDocumentViewSet i just wrote in src/manager_api/documents/views/vehicle_document.py, it has a custom confirm action",
+    "should_trigger": true
+  },
+  {
+    "query": "our expense endpoint returns 200 for employees but should be manager-only, can you write a regression test for the permission check",
+    "should_trigger": true
+  },
+  {
+    "query": "need api tests for GET /customers/ - pagination is required and results must be scoped to the request company",
+    "should_trigger": true
+  },
+  {
+    "query": "cover manager_api.companies.views.supplier with tests please, dont forget the by-pks thing",
+    "should_trigger": true
+  },
+  {
+    "query": "write a test that proves customers cant see other peoples vehicles thru the api",
+    "should_trigger": true
+  },
+  {
+    "query": "how should i use APIRequestFactory vs APIClient for testing our viewsets? set up a test for the mutual_settlement action while you're at it",
+    "should_trigger": true
+  },
+  {
+    "query": "the delete endpoint for services should fail when there are related orders - add a test",
+    "should_trigger": true
+  },
+  {
+    "query": "tests for views.py in customer_api/orders pls",
+    "should_trigger": true
+  },
+  {
+    "query": "my teammate says our list endpoints have N+1 queries, add query count tests to the heavy ones in manager_api",
+    "should_trigger": true
+  },
+  {
+    "query": "verify the file download @action returns a presigned url and 404s for other companies files",
+    "should_trigger": true
+  },
+  {
+    "query": "write tests for VehicleSerializer validation - the vin field and the license plate format stuff",
+    "should_trigger": false
+  },
+  {
+    "query": "add unit tests for the Vehicle model's soft delete manager and the queryset methods in src/vehicles/querysets.py",
+    "should_trigger": false
+  },
+  {
+    "query": "create a new DRF viewset for warranty claims with a confirm action, follow the patterns in manager_api",
+    "should_trigger": false
+  },
+  {
+    "query": "why does my APIView return 403 in production but works locally? knox token is set",
+    "should_trigger": false
+  },
+  {
+    "query": "write pytest tests for our fastapi /health and /metrics endpoints",
+    "should_trigger": false
+  },
+  {
+    "query": "test the celery task that syncs vehicle documents to s3",
+    "should_trigger": false
+  },
+  {
+    "query": "can you load test the customers list endpoint with locust, like 500 rps",
+    "should_trigger": false
+  },
+  {
+    "query": "the django admin view for expenses is broken after the migration, add a test reproducing it",
+    "should_trigger": false
+  },
+  {
+    "query": "write tests for the react VehicleList view component, it filters by license plate",
+    "should_trigger": false
+  },
+  {
+    "query": "document our API testing conventions in the README for new hires",
+    "should_trigger": false
+  }
+]

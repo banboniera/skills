@@ -1,0 +1,51 @@
+{
+  "skill_name": "playwright-e2e-testing",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "write-profile-spec",
+      "prompt": "The /profile page in our frontend has no e2e coverage (only smoke). Add a Playwright e2e spec for it: editing the profile fields and saving should work. The frontend repo is /home/g4m3r/Documents/HuggingCar/frontend. Save the spec as e2e/manager/profile-{RUN_TAG}.spec.ts and make sure it actually passes.",
+      "expected_output": "A passing spec using openManagerPage (or equivalent seeded-auth helper), role/label locators, mocked PATCH/PUT profile endpoint, asserting visible success feedback AND the request body contract of the save.",
+      "files": [],
+      "assertions": [
+        "Spec file exists and the recorded test run output shows it passing",
+        "Seeds auth via the suite's page-open helper (openManagerPage/seedReduxState), no UI login",
+        "Mocks the profile save endpoint and asserts the request body contract (which fields were sent)",
+        "Asserts visible UI success feedback (message or updated value), not only the request",
+        "Uses accessible locators (getByRole/getByLabel/getByPlaceholder); no .ant-* CSS where an accessible surface exists",
+        "No waitForTimeout or networkidle waits",
+        "Covers at least one invalid-input case: visible validation error asserted AND no save request emitted"
+      ]
+    },
+    {
+      "id": 1,
+      "eval_name": "fix-timezone-flake",
+      "prompt": "Our mechanic calendar e2e test (e2e/mechanic/calendar.spec.ts in /home/g4m3r/Documents/HuggingCar/frontend) is flaky \u2014 it fails in CI (UTC) and when run near midnight. Figure out why and make it deterministic. Don't edit the original file: save your fixed version as e2e/mechanic/calendar-{RUN_TAG}.spec.ts and verify it passes.",
+      "expected_output": "Root cause identified as machine-clock/timezone-dependent date fixtures (atLocalTime). Fix uses page.clock.setFixedTime (installed before load) with fixtures derived from the same fixed instant; spec passes.",
+      "files": [],
+      "assertions": [
+        "Summary identifies machine-clock/timezone-dependent date fixtures (atLocalTime) as the root cause",
+        "Fixed spec pins browser time via page.clock.setFixedTime (or clock.install) before page load",
+        "Test fixtures/expected values derived from the same fixed instant, not the machine clock",
+        "Fixed spec passes in the recorded test run",
+        "No waitForTimeout or arbitrary sleeps introduced",
+        "Determinism proven beyond a single host-TZ run: verified under a non-host timezone and/or --repeat-each"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "review-brittle-spec",
+      "prompt": "Please review e2e/customer/service-orders.spec.ts in /home/g4m3r/Documents/HuggingCar/frontend for brittle or flaky test patterns and fix what you find. Don't edit the original file: save the improved version as e2e/customer/service-orders-{RUN_TAG}.spec.ts and verify it passes. Also write a short summary of the issues you found.",
+      "expected_output": "Identifies .ant-select-* CSS internals (should be getByRole('option')), ad-hoc URL-string request recording (should be normalized ApiRequestRecord pattern), positional locators; fixed spec passes with accessible locators.",
+      "files": [],
+      "assertions": [
+        "Identifies .ant-select-* dropdown-internal CSS locators as brittle and replaces them with getByRole('option') or an accessible equivalent",
+        "Identifies ad-hoc URL-string request recording and replaces it with normalized request records (method/path/query)",
+        "Positional locators (.first/.last/.nth) removed or replaced with content-based .filter() where content can discriminate",
+        "Improved spec passes in the recorded test run",
+        "Summary lists concrete issues with reasons, not generic advice",
+        "Fix follows the suite's existing request-assertion convention (normalized records) instead of introducing a parallel pattern"
+      ]
+    }
+  ]
+}

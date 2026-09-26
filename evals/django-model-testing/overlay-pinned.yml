@@ -1,0 +1,7 @@
+# Eval-only overlay for model-pinned runs: no memory writes, no silent model switches.
+memory:
+  backend: "off"
+retry:
+  usageAwareFallback: false
+  fallbackChains:
+    default: []
