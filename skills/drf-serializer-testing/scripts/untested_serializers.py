@@ -1,50 +1,55 @@
 #!/usr/bin/env python3
-"""List serializer classes no test file references.
+"""List DRF serializer classes no test file mentions.
 
 Usage: python untested_serializers.py <project-src-dir>
 
-Scans *.py under serializers/ dirs and serializers.py modules for
-`class <Name>Serializer` definitions, then reports classes whose name
-never appears in any file under a tests/ directory. Name-based: a class
-only exercised via a parent serializer still counts as referenced only
-if its name is written somewhere in tests.
+Finds classes whose name or a base class name ends in `Serializer`, in any
+non-test module, then reports the ones whose name appears in no .py file under
+a tests/ directory or named test_*.py. Name matching only: a serializer tested
+only through a parent that nests it, or a base class tested through its
+subclasses, shows up too, so judge the list.
 """
 
+import ast
 import re
 import sys
 from pathlib import Path
 
-CLASS_RE = re.compile(r"^class (\w+Serializer)\b", re.M)
-SKIP_PARTS = {".venv", "venv", "node_modules", "migrations"}
+SKIP_PARTS = {".venv", "venv", "node_modules", "migrations", "site-packages"}
+
+
+def looks_like_serializer(cls: ast.ClassDef) -> bool:
+    names = [cls.name] + [ast.unparse(base).split(".")[-1] for base in cls.bases]
+    return any(name.endswith("Serializer") for name in names)
+
+
+def is_test(path: Path) -> bool:
+    return "tests" in path.parts or path.name.startswith("test_")
 
 
 def main(root: Path) -> int:
-    ser_files = {
-        p
-        for p in root.rglob("*.py")
-        if not SKIP_PARTS & set(p.parts)
-        and "tests" not in p.parts
-        and ("serializers" in p.parts or p.name == "serializers.py")
-    }
+    sources = [p for p in root.rglob("*.py") if not SKIP_PARTS & set(p.parts)]
     defined: dict[str, Path] = {}
-    for path in ser_files:
-        for match in CLASS_RE.finditer(path.read_text(errors="replace")):
-            defined[match.group(1)] = path
+    for path in sources:
+        if is_test(path):
+            continue
+        try:
+            tree = ast.parse(path.read_text(errors="replace"))
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef) and looks_like_serializer(node):
+                defined[node.name] = path
 
-    test_text = "".join(
-        p.read_text(errors="replace")
-        for p in root.rglob("tests/**/*.py")
-        if not SKIP_PARTS & set(p.parts)
-    )
-
+    test_text = "\n".join(p.read_text(errors="replace") for p in sources if is_test(p))
     untested = sorted(
         (str(path.relative_to(root)), name)
         for name, path in defined.items()
-        if name not in test_text
+        if not re.search(rf"\b{re.escape(name)}\b", test_text)
     )
     for path, name in untested:
         print(f"{path}: {name}")
-    print(f"\n{len(defined)} serializer classes, {len(untested)} unreferenced by tests", file=sys.stderr)
+    print(f"\n{len(defined)} serializer classes, {len(untested)} not mentioned by any test", file=sys.stderr)
     return 0
 
 
