@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import SAFE_METHODS, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
+from documents.mixins import ExportMixin
 from documents.models import Document, Member
 
 
@@ -39,7 +40,7 @@ class IsOwnerOrAdmin(BasePermission):
         return True
 
 
-class DocumentViewSet(viewsets.ModelViewSet):
+class DocumentViewSet(ExportMixin, viewsets.ModelViewSet):
     """Documents of the caller's workspace (`request.user.member.workspace`).
 
     - A caller sees the workspace's documents with workspace visibility plus their own private ones; other workspaces'

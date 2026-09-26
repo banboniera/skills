@@ -126,6 +126,7 @@ SPECS = {
         "mutants": DOCS_MUTANTS,
         "untouched": ["documents/views.py", "documents/models.py"],
         "base_class": "DocumentsTestCase",
+        "test_patterns": [("Tests cover the inherited export action", r"export")],
         "reports": [
             ("Report names the private-document detail leak", [r"(?i)private", r"(?i)retriev|detail|by id|get_queryset|/documents/\{?\w*\}?/|404"]),
             ("Report names the delete permission bug", [r"(?i)delet", r"(?i)DELETE|owner|admin|editor|permission"]),

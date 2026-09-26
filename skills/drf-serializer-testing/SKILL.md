@@ -134,6 +134,6 @@ Run the new or changed tests with the project's test command, limited to the mod
 
 Report what you tested, the bugs found with their failing tests, and anything the tests cannot prove, such as a database constraint no serializer checks, which reaches clients as a server error.
 
-To find serializers no test mentions at all, when covering a whole app or reviewing, run this skill's `scripts/untested_serializers.py <src-dir>`. It matches names only, so a serializer tested only through a parent appears even when covered.
+To find serializers no test mentions at all, when covering a whole app or reviewing, search the test files for each serializer class name; a serializer tested only through a parent that nests it can look untested.
 
 For many serializers at once with subagents, give each subagent a whole module, since sibling serializers share bases and fixtures, and have them write tests only; run the new test modules one at a time at the end, because parallel `manage.py test` runs can collide on a shared test database.

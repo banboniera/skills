@@ -147,7 +147,6 @@ Fetch mock record `new Request(input, init)` (method, URL, cloned body text), re
 
 - [references/mocking.md](references/mocking.md) — `vi.mock` hoisting, `vi.hoisted`, dynamic-import ordering, partial mocks, `vi.mocked` typing, spies vs mocks, fake timers/system time, global stubs. Read when any mocking beyond plain `vi.fn` involved.
 - [references/holuto.md](references/holuto.md) — Holuto frontend: shared `@/tests` helpers, setup guarantees, antd/umi/pro-components/react-pdf mock recipes, exemplar files, run commands. Read when working in that repo.
-- [scripts/untested_files.ts](scripts/untested_files.ts) — list source files with no colocated test. Usage: `bun scripts/untested_files.ts /path/to/frontend/src`.
 
 ## Quick verify (gate before finishing)
 

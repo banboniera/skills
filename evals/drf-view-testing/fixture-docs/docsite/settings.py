@@ -3,7 +3,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "eval-only"
 DEBUG = True
-INSTALLED_APPS = ["django.contrib.contenttypes", "django.contrib.auth", "rest_framework", "rest_framework.authtoken", "documents"]
+INSTALLED_APPS = ["django.contrib.contenttypes", "django.contrib.auth", "django.contrib.sessions", "rest_framework", "rest_framework.authtoken", "documents"]
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True

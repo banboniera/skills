@@ -112,6 +112,8 @@ def main(run_dir: Path, ws: Path, name: str, python: str) -> None:
     checks.append(("No assertRaises(Exception)", not re.search(r"assertRaises\(\s*Exception\s*[,)]", test_src), ""))
     for label, patterns in spec["reports"]:
         checks.append((label, all(re.search(p, report) for p in patterns), ""))
+    for label, pattern in spec.get("test_patterns", []):
+        checks.append((label, bool(re.search(pattern, test_src)), ""))
     if spec.get("base_class"):
         checks.append(("Uses the project's test base", spec["base_class"] in test_src, ""))
 

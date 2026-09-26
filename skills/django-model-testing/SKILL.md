@@ -123,6 +123,6 @@ Run the new or changed tests with the project's test command, limited to the mod
 
 Report what you tested, the bugs found with their failing tests, and anything the tests cannot prove, such as constraints the test database does not enforce.
 
-To find models no test mentions at all, when covering a whole app or reviewing, run this skill's `scripts/untested_models.py <src-dir>`. It matches names only, so an abstract base appears even when its subclasses are tested.
+To find models no test mentions at all, when covering a whole app or reviewing, search the test files for each model class name; an abstract base can look untested when only its subclasses are.
 
 For many models at once with subagents, give each subagent a whole module, since an abstract base and its subclasses belong together, and have them write tests only; run the new test modules one at a time at the end, because parallel `manage.py test` runs can collide on a shared test database.
