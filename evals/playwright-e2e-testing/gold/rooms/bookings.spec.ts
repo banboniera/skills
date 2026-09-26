@@ -69,8 +69,9 @@ test('empty day and failed load', async ({ page }) => {
 
 test.describe('who can book and cancel', () => {
   test('guests can neither book nor cancel', async ({ page }) => {
-    await open(page, undefined, 'guest')
-    await expect(items(page)).toHaveCount(2)
+    const guests = booking(5, 'Visit', users.guest, '2026-04-10T14:00:00Z', '2026-04-10T15:00:00Z')
+    await open(page, [bookingsApi(() => [...day, guests]), roomsApi], 'guest')
+    await expect(items(page)).toHaveCount(3)
     await expect(page.getByRole('button', { name: 'Book a room' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /^Cancel/ })).toHaveCount(0)
   })

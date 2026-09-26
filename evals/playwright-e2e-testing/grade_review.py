@@ -36,7 +36,7 @@ def test_ranges(source: str) -> dict[str, range]:
 def cites(chunk: str, name: str, ranges: dict[str, range]) -> bool:
     if name.lower() in chunk.lower():
         return True
-    for a, b in re.findall(r"(?:orders\.spec\.ts|(?<![\w.]))[:L](\d+)(?:[-–](\d+))?", chunk):
+    for a, b in re.findall(r"(?:orders\.spec\.ts|(?<![\w.])):(\d+)(?:[-–](\d+))?", chunk):
         if set(range(int(a), int(b or a) + 1)) & set(ranges[name]):
             return True
     return False
