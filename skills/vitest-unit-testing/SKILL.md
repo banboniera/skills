@@ -1,163 +1,142 @@
 ---
 name: vitest-unit-testing
-description: Write and fix Vitest unit/component tests — React Testing Library rendering, user-event interactions, renderHook, vi.mock/vi.hoisted module mocking, fake timers, Redux slice/RTK Query endpoint tests, antd component testing. Use whenever the user asks to unit test, cover, or verify a component, hook, utility, reducer, store endpoint, or page, write or review a *.test.ts / *.test.tsx file, fix a failing or flaky Vitest test, or mock a module/timer/fetch in tests — even if they just say "add tests" for code that turns out to run under Vitest (happy-dom), not in a real browser. Not for Playwright e2e specs under e2e/ (use playwright-e2e-testing).
+description: Writes, maintains, and reviews Vitest unit and component tests across their lifecycle so the tests catch real regressions — covering code that already exists, changing a function, component, hook, or store test-first, deciding what to do when a test starts failing (including after a Vitest, React, or library upgrade), and reviewing existing tests. Covers pure functions and their boundaries, React components through Testing Library and user-event, hooks, fake timers and dates, module and global mocks, fetch and RTK Query requests, reducers and selectors, async code whose assertions never run, and happy-dom limits. Use whenever a task writes, reviews, updates, or fixes *.test.ts or *.test.tsx files, adds unit or component tests, mocks a module, timer, or fetch in a test, or changes code that has unit tests, since the tests change with it. Also use for an "add tests" request on code that turns out to run under Vitest, and for a failing or flaky Vitest test. Not for Playwright end-to-end specs.
 ---
 
-# Vitest Unit Testing
+# Testing units with Vitest
 
-Test **observable contract** — what function return, what user see and trigger in DOM, what request endpoint emit, what state reducer produce. Never component internals, hook implementation order, DOM shape beyond semantics, third-party behavior (antd, dayjs, React): trust library, test only what your code add.
+A unit promises something to its callers: a function returns given values for given inputs and refuses the rest, a component shows what its props and state say and calls back with the right values when the user acts, a hook returns the right value over time and cleans up, a store sends the right requests and holds the right state. A test exists to fail when any of that breaks. Coverage does not show that: a test can run every line and still pass on broken code, because it checks that something rendered or was called, not what.
 
-**User naming one behavior never shrink contract.** "Test formatter" still mean: value matrix, boundaries, failure input. Quick verify list = gate, not suggestion.
+| Task | Read |
+| --- | --- |
+| Add tests for code that already exists | this file |
+| Change code that has tests, or a test starts failing | this file and [references/changing-code.md](references/changing-code.md) |
+| Review existing tests | this file and [references/reviewing.md](references/reviewing.md) |
 
-## Workflow
+## The standard
 
-1. **Inspect project first**: `vitest.config.ts` (environment, setupFiles, aliases), setup file (what already global — matchers, cleanup, mock stubs), shared test helpers, 2–3 neighboring `*.test.*` files. Extend local patterns; never add parallel convention (no new render wrappers, no MSW, no snapshot suites if project has none). Holuto frontend: read [references/holuto.md](references/holuto.md) before writing anything.
-2. **Classify unit** — pure function, reducer/slice, RTK Query endpoint/middleware, component, hook, page — pick coverage from table below.
-3. **Plan mocks at boundary only**: network, module side effects (Sentry/analytics), heavy third-party children, time. Mock mechanics (hoisting, `vi.hoisted`, partial mocks, fake timers): [references/mocking.md](references/mocking.md). Never mock unit under test or framework hooks wiring it.
-4. **Write tests**: one behavior per `it`, behavior-named, colocated (`Foo.test.tsx` beside `Foo.tsx`). Semantic queries, awaited `user-event`, exact assertions.
-5. **Run touched file only** (`vitest run path/to/file.test.ts` via project package manager), not whole suite. Failure: read error, fix cause — never widen timeout or wrap in `act` to silence.
+A good test states one rule the unit promises, sets up the smallest case where that rule makes a visible difference, and asserts the outcome exactly. Before keeping a test, ask: if someone deleted or inverted the code behind this rule, would this test fail? If not, it is decoration.
 
-## What to cover
+That question drives the choices below.
 
-| Unit | Do |
-|------|-----|
-| **Pure function** | Exact outputs across input matrix — `it.each` for value tables. Boundaries (empty, zero, negative, max), malformed input code guards against. Locale/format functions: exact strings, not `toContain`. |
-| **Reducer / slice** | `reducer(undefined, action)` for initial state; each action/matcher: given state + action, exact new state. RTK matchers against API actions: synthesize fulfilled/rejected action (`type`, `payload`, `meta.arg`), assert state effect. Side effects in reducers (Sentry, analytics): hoisted spies + assert calls. |
-| **RTK endpoint** | Dispatch `endpoint.initiate(arg)` on real `configureStore` + api middleware with `fetch` replaced; assert **emitted request contract**: method, path, query, body. Error paths: non-2xx `Response`, assert `unwrap()` rejection or error handling effect. |
-| **Middleware** | Fake `MiddlewareAPI` (`dispatch`, `getState`, `next` as `vi.fn`); assert pass-through for irrelevant actions, effect (dispatch, redirect) for matching. |
-| **Component** | Render with boundary mocks; assert what user see (`getByRole`/`getByLabelText` + jest-dom). Every interaction component own: `await user.click/type/...`, then visible outcome or captured callback/mutation payload. Conditional rendering: both branches — `queryBy*` for absence. |
-| **Form component** | Initial values shown; user edit, submit, assert **exact mutation/callback payload** (`waitFor`); validation: invalid input shows error + no submission. |
-| **Hook** | `renderHook`, assert `result.current` contract; state changes inside `act`; timer hooks: fake timers, advance inside `act`; `rerender` for prop-change behavior, `unmount` for cleanup (no calls after unmount). |
-| **Page** | Orchestration: mock data hooks/API/heavy children, assert wiring — right data rendered, user action gives right mutation args, success gives right notification/navigation. Don't re-test mocked children. |
+- **Expected values come from the promise, not the code.** The promise is what the unit's docs, comments, types, callers, and ticket say it does. Reading the implementation and asserting what it returns only proves the code equals itself, and it passes on the bug. Write expected values out literally; never compute them with the same logic the unit uses. When the promise and the code disagree, you have found a bug (see "When a test exposes a bug").
+- **Test both sides of every rule.** Each branch, each boundary and the value just past it (zero and one, the limit and one over, one decimal and two), valid and invalid input, success and failure of every call the unit awaits.
+- **Assert the exact outcome.** `toBe` and `toEqual` on whole values, `toHaveBeenCalledExactlyOnceWith` on callbacks and requests, the exact text or state a user sees. `toContain`, `toBeTruthy`, `toHaveBeenCalled()` without arguments, and `expect.objectContaining` where the whole value is the promise all pass on wrong results.
+- **Make values that could be mixed up differ.** When a call or payload carries several values of one kind (an id and an owner id, a page and a page size, a start and an end), give each a different value in the test; if they are equal, code that sends the wrong one passes.
+- **Assert what must not happen.** Invalid input submits nothing; a cancelled action calls nothing; a failed request leaves the old state; a denied branch renders no control.
+- **Every assertion must run, and every absence needs an anchor.** Await every promise the test starts. An `expect` inside a `.then`, `.catch`, callback, or event handler may never run, and the test passes; `await expect(promise).rejects...` or `expect.assertions(n)` make it count. A `queryBy...` that finds nothing, `not.toHaveBeenCalled()`, and an empty list also pass before the component has rendered or the async work has finished: first assert something that proves the state was reached.
 
-**Skip:** trivial delegation, constant re-exports, third-party behavior, styling, anything covered at better layer (e2e own route-level flows).
+## Find the promise
 
-## Core patterns
+Read the unit and everything that gives it behavior before writing anything: its docs and comments, its types, the modules it imports, and how its callers use it (which return values, props, and callbacks they rely on). For a component, read the child components and hooks it uses; for a store, the base query, the endpoints, and their tags.
 
-**Component — `userEvent.setup()` per test scope, semantic queries, awaited async:**
+Then read how the project tests: `vitest.config` (environment, `globals`, `setupFiles`, `clearMocks`, `restoreMocks`, `unstubGlobals`, aliases), the setup file (what is already global, such as jest-dom matchers, Testing Library cleanup, storage stubs), shared test helpers and mocks, and two or three neighboring test files. Look in AGENTS.md or CLAUDE.md too. Follow the project's way: reuse its helpers and mocks, keep its file layout, and do not add a second convention (a new render wrapper, MSW beside hand-written fetch stubs, snapshots in a suite that has none).
+
+Decide what the unit is and where its boundary lies. Mock only what the unit reaches outside itself that a test cannot run or control: the network, time, randomness, browser APIs happy-dom lacks, and heavy third-party UI when the project mocks it. Never mock the unit, its own helpers, or the framework wiring it together; a real store, real child components, and real library code prove more than mocks of them.
+
+Test what the unit adds, not React, the router, the UI library, or the state library: a test that `useState` updates or that a library's component renders proves nothing about your code.
+
+## Behaviors and their traps
+
+**Functions.** List the cases from the promise and put them in a table with `it.each` (or `test.for`), one row per branch and boundary, with literal expected values. Include the inputs the function must refuse and what it returns or throws for them (`expect(() => f(x)).toThrow(...)`, awaited `rejects` for async). For formatted output (money, dates, plurals), assert the whole string.
+
+**Components.** Render the component as its caller does and interact as a user does: `const user = userEvent.setup()` before rendering, `await` every `user.click`, `user.type`, `user.selectOptions`. Find elements by role and accessible name, then label, then text (`getByRole('button', { name: 'Save' })`, `getByLabelText('Amount')`); `getByTestId` and `container.querySelector` test markup rather than what users perceive. Assert what the user sees and what the component calls back with, exactly. Test each branch of conditional rendering, with an anchor before each absence. Use `findBy...` for something that appears later, and keep a `waitFor` callback to the one assertion you are waiting for. Do not wrap `render` or user-event in `act`: they already are. An act warning means an update you did not await, but React prints it only when `IS_REACT_ACT_ENVIRONMENT` is true, which Testing Library sets itself only when Vitest globals are on: without it, a quiet run proves nothing. Use `fireEvent` only for what user-event cannot express.
+
+**Async actions in components.** When a component awaits a callback or request, control its promise: hold it (a promise you resolve later) to assert the pending state (disabled button, "Saving…"), resolve it to assert success, and reject it the way the backend does to assert the error state, the kept input, and the control enabled again.
+
+**Hooks.** Use `renderHook` with `initialProps` and `rerender` to change arguments, `result.current` for the latest value, and `unmount` for cleanup. Wrap calls that update state outside Testing Library in `act`. Test the hook through a small component when its promise is about what a user sees.
+
+**Timers and dates.** `vi.useFakeTimers()` in `beforeEach` and `vi.useRealTimers()` in `afterEach`. Fake timers also fake `Date`; `vi.setSystemTime()` sets the clock without firing timers. Advance with `act(() => vi.advanceTimersByTime(ms))`, or `await act(() => vi.advanceTimersByTimeAsync(ms))` when promises run between timers. Test the boundary: nothing at `delay - 1`, the effect at `delay`, the wait restarting on a new change, nothing left after unmount (`vi.getTimerCount()`). user-event waits on timers and hangs under plain fake timers, even with its `advanceTimers` option: use `vi.useFakeTimers({ shouldAdvanceTime: true })` with `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`. The clock then also moves with real time, so assert exact timer boundaries with `advanceTimersByTime` steps rather than across user-event calls. A date string without an offset (`new Date('2026-04-10T12:00:00')`) is read in the test runner's time zone, and a date-only string (`'2026-04-10'`) as UTC midnight: set the clock in the zone the code works in, and test times of day where local and UTC dates differ (just after midnight, just before).
+
+**Module mocks.** `vi.mock(path, factory)` is hoisted above the imports, so for a statically imported module its factory runs before the file's own variables exist: create what it needs with `vi.hoisted(() => ...)`. Call `vi.mock` only at the top level; inside a test or function it fails the whole file in Vitest 5. Mock the module path the unit imports; keep the rest of a library with `await vi.importActual(...)` and replace only the boundary. `vi.mocked(fn)` types a mocked import. Use `vi.doMock` with a dynamic `import()` when tests need different factories for the same module. Globals: `vi.stubGlobal` with `vi.unstubAllGlobals()` afterwards, or the project's own stubs.
+
+**Mock state between tests.** Vitest 5 clears call history before every test by default (`clearMocks: true`) but keeps implementations: a `mockReturnValue` or `mockImplementation` set in one test leaks into the next unless the project sets `mockReset` or `restoreMocks`, or the test sets it again. `vi.restoreAllMocks()` restores only `vi.spyOn` spies. Set each test's mock behavior in that test or in `beforeEach`.
+
+**Requests.** Replace `fetch` (or use the project's MSW handlers) and record each request: method, path, query, and body, read from the `Request`. Drive the real code (the real API client or RTK Query store with its middleware), then assert the exact requests and what the caller gets back, including the error shape for a failing status. For RTK Query, also test what the tags promise: after a mutation, the affected query is fetched again. RTK Query's `fetchBaseQuery` looks `fetch` up on every request, so stubbing it after the import works; a client that stores `fetch` at import time needs the stub before it is imported.
+
+**Reducers and selectors.** `reducer(undefined, { type: 'init' })` for the initial state; for each action, a state before and the exact state after, including the fields that must not change. Feed selectors state that contains the rows they must leave out.
+
+**happy-dom limits.** No layout (`getBoundingClientRect` returns zeros); CSS files imported by components are not loaded, so `toBeVisible` sees inline styles, `hidden`, and `<style>` elements in the document, not the app's stylesheets; and browser APIs such as `matchMedia`, `ResizeObserver`, and `IntersectionObserver` exist without doing what a browser does. A test that stubs one of these does not exercise the behavior that depends on it; say so in your report, and leave that behavior to an end-to-end test.
+
+**Snapshots.** A snapshot passes whatever it first recorded and is re-recorded without being read. Use one only for stable serialized output nobody would assert field by field, and prefer small inline snapshots; assert behavior with explicit expectations.
+
+## Writing the tests
 
 ```tsx
-const user = userEvent.setup()
+import { act, render, renderHook, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-it('updates the profile email', async () => {
-	render(<ProfilePage />)
+import { OrderForm } from './OrderForm'
+import { parseQuantity } from './quantity'
+import { useCountdown } from './useCountdown'
 
-	const email = screen.getByLabelText(Locales.Input.email.label)
-	expect(email).toHaveValue('ada@example.com')
+describe('parseQuantity', () => {
+  it.each([
+    ['1', 1],
+    ['  12 ', 12],
+    ['999', 999],
+  ])('reads %j as %i', (text, expected) => {
+    expect(parseQuantity(text)).toBe(expected)
+  })
 
-	await user.clear(email)
-	await user.type(email, 'new@example.com')
-	await user.click(screen.getByRole('button', { name: Locales.Button.save }))
+  it.each(['', '0', '1000', '1.5', '-1', 'ten'])('refuses %j', (text) => {
+    expect(parseQuantity(text)).toBeNull()
+  })
+})
 
-	await waitFor(() =>
-		expect(patchCustomer).toHaveBeenCalledWith(
-			expect.objectContaining({ email: 'new@example.com' }),
-		),
-	)
+describe('OrderForm', () => {
+  it('submits the cleaned order once', async () => {
+    const onSubmit = vi.fn(() => Promise.resolve())
+    const user = userEvent.setup()
+    render(<OrderForm onSubmit={onSubmit} />)
+
+    await user.type(screen.getByLabelText('Quantity'), ' 12 ')
+    await user.click(screen.getByRole('button', { name: 'Order' }))
+
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ quantity: 12 })
+  })
+
+  it('refuses a quantity of zero and submits nothing', async () => {
+    const onSubmit = vi.fn(() => Promise.resolve())
+    const user = userEvent.setup()
+    render(<OrderForm onSubmit={onSubmit} />)
+
+    await user.type(screen.getByLabelText('Quantity'), '0')
+    await user.click(screen.getByRole('button', { name: 'Order' }))
+
+    expect(screen.getByText('Order at least one')).toBeInTheDocument() // the anchor: validation ran
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+})
+
+describe('useCountdown', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('ticks once a second and stops at zero', () => {
+    const { result } = renderHook(() => useCountdown(2))
+    act(() => vi.advanceTimersByTime(999))
+    expect(result.current).toBe(2)
+    act(() => vi.advanceTimersByTime(1))
+    expect(result.current).toBe(1)
+    act(() => vi.advanceTimersByTime(5000))
+    expect(result.current).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })
 ```
 
-Appearance: `await screen.findByText(...)` — never `waitFor(() => getBy...)`. Absence: `queryBy*` + `not.toBeInTheDocument()`. Never wrap `render` or user-event in manual `act` — RTL already do; act warning mean update not awaited, not that it need silencing.
+- Name each test after the rule it checks, so a failure reads as the broken promise. Group with `describe` by unit, and keep setup in the test or a small local function unless several files share it.
+- Keep each test independent: its own render, mocks, and data; nothing relies on another test having run.
+- Keep fixtures typed with the real types, so a change in the shape the code expects fails the type check.
 
-**Module mock with mutable state — `vi.hoisted` for anything hoisted factory close over:**
+## When a test exposes a bug
 
-```tsx
-const patchCustomer = vi.hoisted(() => vi.fn())
-const mockState = vi.hoisted(() => ({ current: { app: { user: fakeUser } } }))
+If a test written from the promise fails because the code breaks it, keep the test as written and failing, leave the code unchanged, and finish the rest. Never add a test that asserts behavior you believe is wrong, such as a control staying disabled after an error it should recover from. In your report, name the failing test, the input, and what the promise says, so the user can decide whether to fix the code. This applies to bugs you find; a change the user asked for follows [references/changing-code.md](references/changing-code.md).
 
-vi.mock('@/store/api', () => ({ usePatchCustomerMutation: () => [patchCustomer] }))
-vi.mock('@/hooks/redux', () => ({
-	useAppSelector: (selector: (s: typeof mockState.current) => unknown) =>
-		selector(mockState.current),
-}))
-```
+## Finish
 
-Tests vary state by assigning `mockState.current` — no re-mocking per test. Partial mock keep real library except boundary:
+Run the test files you touched with the project's test command, limited to those files. They pass, except tests you kept because they expose a bug, and the run shows no unhandled errors or act warnings. Run them again with `--sequence.shuffle` to show they do not depend on order, and run the project's type check if it covers tests.
 
-```tsx
-vi.mock('antd', async () => {
-	const actual = await vi.importActual<typeof import('antd')>('antd')
-	return { ...actual, App: { useApp: () => ({ message: { success: messageSuccess } }) } }
-})
-```
-
-**Hook with timers — advance inside `act`, always restore:**
-
-```tsx
-beforeEach(() => vi.useFakeTimers())
-afterEach(() => vi.useRealTimers())
-
-it('delays calls until the trailing edge', () => {
-	const callback = vi.fn()
-	const { result } = renderHook(() => useDebouncedCallback(callback, 100))
-
-	result.current('first')
-	act(() => vi.advanceTimersByTime(99))
-	expect(callback).not.toHaveBeenCalled()
-
-	act(() => vi.advanceTimersByTime(1))
-	expect(callback).toHaveBeenCalledExactlyOnceWith('first')
-})
-```
-
-Fake timers + user-event: `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`. Date-dependent code: `vi.setSystemTime(...)` (control `dayjs()` too) — never fire timers; advancing do.
-
-**RTK endpoint — patch globals before api module load, assert request:**
-
-```ts
-Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock })
-// Dynamic: fetch must be patched before the api module evaluates.
-const { rootApi } = await import('./api')
-
-const store = configureStore({
-	middleware: (gDM) => gDM().concat(rootApi.middleware),
-	reducer: { [rootApi.reducerPath]: rootApi.reducer },
-})
-await store.dispatch(api.endpoints.deleteVehicle.initiate(3)).unwrap()
-expect(requests[0]).toMatchObject({ method: 'DELETE', url: expect.stringContaining('/vehicles/3/') })
-```
-
-Fetch mock record `new Request(input, init)` (method, URL, cloned body text), return `Response` — recorded array IS contract assertion surface.
-
-## Anti-patterns
-
-- `fireEvent` where `user-event` model interaction — fire one event, not real sequence (pointer, focus, keyboard); reserve `fireEvent` for low-level cases user-event can't express (raw `blur`, antd select helper).
-- `getByTestId`/`container.querySelector` where role/label/text query exist — test nothing accessible, break on restyle.
-- `toBeTruthy()`/`toBeNull()` on queries — use jest-dom: `toBeInTheDocument`, `toHaveValue`, `toBeDisabled`, `toBeVisible`; failures then explain themselves.
-- Manual `act` around `render`/user-event, or silencing act warnings — warning mean unawaited update; `await` interaction or use `findBy*`.
-- `waitFor(() => expect(getBy...))` for appearance — `findBy*` IS retrying query. `waitFor` bodies: assertions only, no side effects, ideally one.
-- Mocking react-redux hooks/selectors *when real store cheap* — slices and endpoints use real `configureStore`; hook-level selector mocks for component wiring tests only.
-- Snapshot tests for component DOM — encode intent with explicit assertions; snapshots get blindly regenerated.
-- Re-mocking module per test instead of one `vi.hoisted` mutable ref.
-- Asserting mock plumbing ("my mock was called") when mock not boundary contract — assert visible outcome or payload crossing boundary.
-- Copy-pasting same module mock/harness across files — shared boundary: shared helper; one-off: keep local.
-- Testing loading spinners/internals of mocked children — mock render them; you test own mock.
-
-## Version notes (Vitest 4)
-
-- `vi.restoreAllMocks` restore **only** manual `vi.spyOn` spies, no longer reset state; `.mockRestore()` still do both. Config `clearMocks`/`mockReset`/`restoreMocks` default false.
-- Vitest `mockReset` restore `vi.fn(impl)` to **original** impl (unlike Jest empty fn).
-- Constructor mocks: implementation must be `function`/`class` — arrow throw on `new`.
-- `workspace` config replaced by `projects`; coverage report only covered files unless `coverage.include` set.
-- `vi.mock` factories can't reference outer variables (hoisted above imports) — `vi.hoisted` for values, no imports inside `vi.hoisted`. Full mechanics: [references/mocking.md](references/mocking.md).
-- happy-dom faster than jsdom but lack some APIs (matchMedia, BroadcastChannel, canvas, `URL.createObjectURL`) — stub locally per test file, restore after.
-- user-event v14: `userEvent.setup()` before render, `await` every interaction; with fake timers pass `advanceTimers`, never `delay: null`.
-
-## Bundled resources
-
-- [references/mocking.md](references/mocking.md) — `vi.mock` hoisting, `vi.hoisted`, dynamic-import ordering, partial mocks, `vi.mocked` typing, spies vs mocks, fake timers/system time, global stubs. Read when any mocking beyond plain `vi.fn` involved.
-- [references/holuto.md](references/holuto.md) — Holuto frontend: shared `@/tests` helpers, setup guarantees, antd/umi/pro-components/react-pdf mock recipes, exemplar files, run commands. Read when working in that repo.
-- [scripts/untested_files.ts](scripts/untested_files.ts) — list source files with no colocated test. Usage: `bun scripts/untested_files.ts /path/to/frontend/src`.
-
-## Quick verify (gate before finishing)
-
-Every claimed behavior has test named for it. Pure functions: input matrix + boundaries via `it.each`. Components: initial render, each owned interaction, both conditional branches, absence via `queryBy*`. Forms: exact submit payload + validation error path. Hooks: `result.current` contract, timer edges inside `act`, unmount cleanup where relevant. Endpoints/reducers: exact request/state contract, error path. Semantic queries throughout; every user-event awaited; no manual `act` around RTL; no unhandled act warnings in output. Timers/system time restored. Touched test file run and green — test never executed not deliverable.
-
-## References
-
-- https://vitest.dev/api/vi.html
-- https://vitest.dev/guide/migration.html
-- https://testing-library.com/docs/queries/about/
-- https://testing-library.com/docs/user-event/intro/
-- https://redux.js.org/usage/writing-tests
-- https://kentcdodds.com/blog/common-mistakes-with-react-testing-library
+Report what you tested, the bugs found with their failing tests, and anything the tests cannot prove, such as behavior that depends on real layout, a real browser API, or the real backend.

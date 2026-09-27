@@ -1,0 +1,3 @@
+# Eval-only settings overlay: keep eval sessions out of the user's memory store.
+memory:
+  backend: "off"

@@ -1,0 +1,52 @@
+{
+  "skill_name": "drf-view-testing",
+  "evals": [
+    {
+      "id": 0,
+      "name": "supplier-by-pks",
+      "prompt": "In /home/g4m3r/Documents/HuggingCar/api, add view tests for the manager suppliers endpoint (src/manager_api/companies/views/supplier.py). I want the endpoint contract covered, including the by-pks action.",
+      "expected_output": "A Django TestCase-based test module covering auth (401/403), company scoping, list shape/pagination, writes with DB side effects, and the by-pks action contract, using the project's ViewTestCase base. Tests pass.",
+      "files": [],
+      "assertions": [
+        "Test module passes when run (test_run.txt ends in OK, no failures/errors)",
+        "Anonymous request asserted as exactly HTTP 401",
+        "Authenticated non-manager (plain employee) asserted as exactly HTTP 403",
+        "Company scoping tested: an other-company supplier is created and asserted excluded (or detail access fails)",
+        "by-pks action covered: valid pks return matching rows AND invalid/out-of-scope input contract asserted",
+        "At least one write test asserts persisted DB state (re-query/refresh), not only the response",
+        "Reuses the project's ViewTestCase/BaseTestCase fixtures instead of hand-rolled user/company creation"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "expense-crud",
+      "prompt": "Write API tests for the manager expense views in /home/g4m3r/Documents/HuggingCar/api (src/manager_api/companies/views/expense.py) - who can access it, company scoping, pagination, create/update/delete.",
+      "expected_output": "Test module asserting exact 401/403 statuses, in-scope vs out-of-scope rows, pagination validation, and create/update/delete with persisted side effects + unchanged DB on reject. Tests pass.",
+      "files": [],
+      "assertions": [
+        "Test module passes when run (test_run.txt ends in OK, no failures/errors)",
+        "Anonymous request asserted as exactly HTTP 401",
+        "Authenticated non-manager (plain employee) asserted as exactly HTTP 403",
+        "Company scoping tested: other-company expense excluded from list results",
+        "Invalid/missing pagination input asserted as HTTP 400 with the error key inspected",
+        "Create and update/delete assert persisted DB side effects (re-query/refresh_from_db/count)",
+        "A rejected write asserts the DB is unchanged",
+        "Reuses the project's ViewTestCase/BaseTestCase fixtures instead of hand-rolled user/company creation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "customer-vehicle-scoping",
+      "prompt": "add tests for the customer api vehicles list endpoint in /home/g4m3r/Documents/HuggingCar/api (customer_api app) - make sure customers only see their own vehicles and pagination works",
+      "expected_output": "Test module for the customer vehicles list: authenticated customer sees own vehicles, other customers' vehicles excluded, unauthenticated gets 401, pagination fields + invalid pagination input. Uses customer role auth correctly. Tests pass.",
+      "files": [],
+      "assertions": [
+        "Test module passes when run (test_run.txt ends in OK, no failures/errors)",
+        "Customer sees own vehicles; another customer's vehicle is created and asserted excluded",
+        "Unauthenticated request asserted as exactly HTTP 401",
+        "Pagination response shape asserted AND invalid pagination input covered",
+        "Authenticates with the customer role mechanism (Knox token login flow or force_authenticate matching CustomerTokenAuthentication)"
+      ]
+    }
+  ]
+}

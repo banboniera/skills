@@ -1,167 +1,139 @@
 ---
 name: drf-serializer-testing
-description: Write unit tests for Django REST Framework serializers — validation, save behavior, representation, context-driven querysets, and nested writes. Use whenever the user asks to test, cover, or verify a DRF serializer (ModelSerializer, Serializer, ListSerializer), mentions serializer validation errors, validated_data, to_representation, or asks for tests for files named serializers.py or tests under tests/serializers/, even if they just say "add tests" for code that turns out to be a serializer.
+description: Writes, maintains, and reviews unit tests for Django REST Framework serializers across their lifecycle so the tests catch real regressions — covering existing serializers, changing a serializer's validation, save logic, or output (the API contract) test-first, deciding what to do when a serializer test starts failing (including after a DRF upgrade), and reviewing existing serializer tests. Covers validation, uniqueness, create/update/partial update, nested and many=True writes, exact output shape, tenant-scoped related fields, and query counts while serializing. Use whenever a task writes, reviews, updates, or fixes tests for DRF serializers, and whenever it adds a serializer or changes one's fields, validation, save logic, or output, since the tests change with it. Also use for an "add tests" request on code that turns out to be a DRF serializer, a failing serializer test, or a question about what existing serializer tests miss. Not for model tests or view tests (permissions, routing, status codes).
 ---
 
-# DRF Serializer Testing
+# Testing DRF serializers
 
-Test serializer contract only — validation errors, normalized/saved state, representation. Never DRF internals: plain `CharField` rejecting `None` is DRF's job. Test what serializer adds: custom validators, field config, querysets, save logic, output shape.
+A serializer is an API contract: which input it accepts, what it stores, and what it returns. A serializer test exists to fail when that contract breaks. Coverage does not show that: a test can run every line and still pass when the logic is wrong, because it asserts too little or asserts what the code happens to do. Every task below uses the standard in this file; read the reference that matches the task too.
 
-## Workflow
+| Task | Read |
+| --- | --- |
+| Add tests for serializers that already exist | this file |
+| Add or change serializer behavior or output, or a serializer test starts failing | this file and [references/changing-serializers.md](references/changing-serializers.md) |
+| Review existing serializer tests | this file and [references/reviewing.md](references/reviewing.md) |
 
-1. Read serializer + everything it touches: fields, `validate_<field>()`, `validate()`, `create()`/`update()`, `to_representation()`, `SerializerMethodField`s, queryset callables, models. Trace context use (`self.context["request"]`, user, company, language). Never test unread code.
-2. Find project serializer test base + neighboring tests before raw `TestCase` boilerplate. Reuse its fixtures + assertion helpers, never hand-roll shared models. Project-specific conventions (bases, fixtures, run command): read `references/` — see Bundled resources.
-3. Coverage gaps unknown? Run `scripts/untested_serializers.py <project-src-dir>` — lists serializer classes no test references.
-4. Classify serializer, pick coverage from table: writable (form/create/update), read-only (list/detail/select), nested/collection. `scripts/coverage_map.py <serializers.py> [Class]` prints per-class checklist of owned fields/validators/hooks mapped to required tests — supplements step 1, never replaces it: `!`-marked lines flag statically invisible fields (`__all__`, Meta-derived, `get_fields()`); step 1's reading is authoritative.
-5. Write tests: one behavior per test, explicit setup, exact assertions. Mirror test path convention (`<app>/tests/serializers/test_<name>.py`).
-6. Run tests for touched module only, not whole suite.
+## The standard
 
-**Batch coverage** (many untested serializers, subagents available): shard by MODULE, one subagent per module — never per class (siblings share fixtures/base). Each subagent brief: this SKILL.md path + target module + output test path; workers write tests only — syntax check (`ast.parse`) at most; never run suite/linters mid-batch. Orchestrator merges, then runs new test modules **serially** at the end — concurrent `manage.py test` invocations collide on the shared `test_<dbname>` database. No subagents: work through gap list module by module, same rule.
+A good serializer test states one rule the serializer promises, sets up the smallest case where that rule makes a visible difference, and asserts the outcome exactly. Before keeping a test, ask: if someone deleted or inverted the code behind this rule, would this test fail? If not, it is decoration.
 
-## What to cover
+That question drives the choices below.
 
-| Area | Do |
-|------|-----|
-| **Validation** | Every writable serializer: ≥1 valid + ≥1 invalid payload. Assert `serializer.errors` **by key and shape** — never stop at `assertFalse(serializer.is_valid())`. Cover every custom `validate_<field>()` and `validate()` branch. Every field serializer **owns** (declared or configured — incl. `ChoiceField` choices, min/max, format): valid + boundary/invalid value. Assert coerced/normalized `validated_data`. Validation raising `PermissionDenied` (or other DRF exception): assert exact class + message. Invalid input: assert **DB unchanged**. |
-| **Save** | Writable `ModelSerializer` IS the write contract: cover `create` + full `update` even without custom methods. **`partial=True`** separately: assert changed AND unchanged fields. Parent-supplied relations: `serializer.save(user=…)` kwargs — test that path directly. Save touching related rows, M2M, detail models, generated values: assert **every** side effect after `save()` from persisted state (`refresh_from_db`), never only returned instance. |
-| **Context & querysets** | Context-driven behavior (user, company, language, tenant): set context, assert outcome. Writable relations with dynamic/filtered querysets: in-scope IDs pass, out-of-scope IDs **fail at validation** — tenant-isolation boundary; missing test here = security gap. Nested serializers receiving context: exercise filtering **through parent**. |
-| **Read / output** | Assert **exact** key set of `.data`, never presence of few keys — extra keys leak data silently. Match `SerializerMethodField`, `ReadOnlyField`, translated labels, computed totals, flattened relations to known fixtures. `write_only` keys **absent** from `.data`. Custom `to_representation()`: test path directly. |
-| **Query budget** | DRF never optimizes querysets — `SerializerMethodField`/nested/related access hides N+1. List/detail serializer touching relations: wrap `.data` in `assertNumQueries(N)`; prefetched instance: assert `assertNumQueries(0)`. Budget = representation contract. |
-| **Nested & collections** | Writable nested payloads: valid + invalid; nested errors on **parent** with correct key structure. Updates mixing existing child `pk` + new rows: assert created, updated, kept, removed. Reject unavailable related objects at validation — never rely on post-save DB errors. `many=True`: `ListSerializer` supports multiple **create** only, never multiple update unless custom `ListSerializer.update`; list-level `allow_empty`/`max_length`: test boundaries when serializer sets them. |
-| **Constraints** | Uniqueness/scope conflicts: **pre-create** conflicting row, then validate. DRF 3.16+ auto-generates validators from `Meta.constraints` `UniqueConstraint` (nullable + conditional included) — expect serializer-level error; assert `IntegrityError` only when contract intentionally defers to DB. Never duplicate pure model tests unless serializer changes validation/save contract. |
+- **Expected values come from the promise, not the code.** The promise is what the serializer's docstring, field names, and callers say it does, and what its clients rely on. Reading the implementation and asserting what it returns only proves the code equals itself, and it passes on the bug. When the promise and the code disagree, you have found a bug (see "When a test exposes a bug").
+- **Break one thing per invalid payload.** Start from one valid payload and change a single field per test. A payload that is invalid in two ways keeps the test passing when the rule it names breaks, and cross-field rules in `validate()` never run at all while any field is invalid.
+- **Inputs must discriminate.** Use input the rule changes: lowercase text for an uppercasing validator, the exact boundary value and the first value past it, a related object from each side of a queryset filter, a value that rounds differently for a rounding rule.
+- **Assert the exact error.** Pin the key and the code: `serializer.errors["assignee"][0].code == "does_not_exist"`. `assertFalse(serializer.is_valid())` alone passes on any error, including the wrong one.
+- **Assert stored state and exact output.** After `save()`, reload with `refresh_from_db()` or query again, and assert every effect, including related rows. For output, assert the whole key set and each value as a client sees it.
+- **Assert what must not happen.** An out-of-scope id rejected, a write-only field absent from output, no rows written by invalid input, fields and related rows left alone by a partial update. Exclusion is usually where the bugs are.
 
-## Core patterns
+## Find the promise
 
-Instantiate serializer directly — no view, no HTTP client. Views get own tests; client here adds auth/routing noise, hides which layer broke.
+Read the serializer and everything that gives it behavior before writing anything: declared fields, `Meta` (`fields`, `exclude`, `read_only_fields`, `extra_kwargs`, `validators`), the model fields it derives from (`max_length`, `choices`, validators, `unique`, constraints), `__init__` (querysets or fields set from context), `validate_<field>()`, `validate()`, `create()`, `update()`, `to_internal_value()` and `to_representation()` overrides, `SerializerMethodField` methods, nested serializers, and custom `ListSerializer` classes. Then read its callers: which views use it, with which context, whether they update partially, which queryset they pass (and what it prefetches), and which keyword arguments they pass to `save()`. As you read, compare each rule's promise with what its code does.
 
-Prefer project test-base helpers over hand-rolled assertions when the base provides them (error-key asserts, partial-update diffs, exact-key checks) — sharper failures, consistent with neighboring tests. Examples below use plain `unittest` asserts: portable everywhere.
+Follow the project's testing conventions: its base test classes, fixture and assertion helpers, context builders, factories, file layout, and test command. Look in AGENTS.md or CLAUDE.md, neighboring serializer tests, and CI config, and reuse what exists rather than hand-rolling setup.
 
-**Valid path — normalization + persisted state:**
+Test what the project added, not DRF: skip a plain `CharField` rejecting `None` or an `IntegerField` rejecting `"abc"`. A limit or choice list the project configured is its own rule and gets a boundary test. Leave permissions, routing, status codes, and the view's own queryset to view tests.
 
-```python
-def test_create_normalizes_and_persists(self):
-    serializer = PartFormSerializer(data=self._payload(), context=self.context)
+## Behaviors and their traps
 
-    self.assertTrue(serializer.is_valid(), serializer.errors)  # errors as msg → readable failures
-    self.assertEqual(serializer.validated_data["name"], self.part_name)
-    part = serializer.save()
-    part.refresh_from_db()
-    self.assertEqual(part.code, "PART-001")
-    self.assertEqual(set(part.mechanics.values_list("pk", flat=True)), {self.mechanic.pk})
-```
+**Validation order.** For each field, DRF runs the field's own checks and validators, then `validate_<field>()`, and skips `validate_<field>()` when the field already failed. Only when every field passed does it run the serializer's `validators` (such as unique-together checks) and then `validate()`. `ValidationError("...")` raised in `validate()` lands under `non_field_errors`; a dict lands under its keys. DRF's own codes include `required`, `null`, `blank`, `invalid`, `invalid_choice`, `max_length`, `min_value`, `max_value`, `does_not_exist`, `incorrect_type`, and `unique`; a project `ValidationError` raised without a code gets `invalid`, so pin its message instead.
 
-**Invalid path — error key, message, clean DB:**
+**What ModelSerializer copies, and what it never checks.** It copies the model field's `max_length`, `choices`, validators, `null` (as `allow_null`), and `blank` (as `allow_blank`). It never calls the model's `full_clean()` or `clean()`, and never checks a `CheckConstraint` or a `UniqueConstraint` built from expressions (such as `Lower("name")`): those fail as an `IntegrityError` at save, a server error for the client. Test such a rule here only when the serializer takes it on; otherwise name it in the report.
 
-```python
-def test_rejects_out_of_scope_mechanic(self):
-    serializer = PartFormSerializer(
-        data=self._payload(mechanics=[self.other_company_mechanic.pk]),
-        context=self.context,
-    )
+**Uniqueness.** `ModelSerializer` adds unique validators for `unique=True`, `unique_together`, and `UniqueConstraint(fields=...)`, including conditional ones, with the code `unique` (a multi-field constraint's `violation_error_code` replaces it), under the field for a single field and under `non_field_errors` for several. Declaring `Meta.validators` replaces them rather than adding to them. It adds none when a field of the constraint is not writable: excluded from `fields`, or read-only without a default, as with a tenant field passed through `save(company=...)`. Then `is_valid()` passes and `save()` raises `IntegrityError`, unless a hand-written check covers it. Test uniqueness where writes meet it: create the conflicting row first and expect a validation error on the right key; allow the same value in another tenant or outside the constraint's condition; and update a row sending its own value back unchanged, as a full update or a form resubmitting every field does, which a hand-written check that forgets to exclude `self.instance` wrongly rejects. A validator runs only for fields sent, so a partial update that leaves the field out proves nothing here.
 
-    self.assertFalse(serializer.is_valid())
-    self.assertEqual(set(serializer.errors), {"mechanics"})
-    self.assertIn("Invalid pk", str(serializer.errors["mechanics"][0]))
-    self.assertEqual(Part.objects.count(), 0)
-```
+**Related fields and scope.** A related field whose queryset is narrowed from context (to the request's company, to active rows) is a security boundary. Test that an in-scope id passes and that an id from each excluded category (another tenant, inactive, deleted) fails with `does_not_exist`, on create and on update, since code can narrow the queryset on one path only. Check every related field, including those inside nested serializers and the `child_relation` of a `many=True` related field.
 
-**Owned fields — every configured field gets boundary/invalid test:**
+**Writes: create, update, partial update.** A writable `ModelSerializer`'s create and full update are its write contract even without custom methods. With `partial=True`, required fields are skipped, field defaults are not applied, and `validate()` receives only the fields sent (an explicit `null` is sent; an omitted key is not), so a rule combining fields must fall back to the instance's stored values; test each such rule through a partial update. Test that a partial update leaves unsent fields and related rows alone: code that treats a missing nested key as an empty list deletes every child. A full update applies defaults again: a `HiddenField(default=CurrentUserDefault())` reassigns the owner on every full update unless wrapped in `CreateOnlyDefault`, so test the owner through a full update by a different user; a partial update never applies defaults and passes either way. Test the `save(**kwargs)` path the view uses, since those values override validated data. Read-only fields and unknown keys in input are silently ignored: test that sending a field the client must not set, such as the owner or tenant, changes nothing. Invalid input must leave the database unchanged.
+
+**Nested writes and many=True.** `ModelSerializer`'s default `create()` and `update()` refuse writable nested fields, so nested writes are always custom code: test create with children, and an update that changes, adds, and omits children, a child id that belongs to another parent, and a partial update without the nested key. A nested serializer's errors are a dict under its key. Since DRF 3.18, `many=True` errors are a dict keyed by the index of each invalid item only: `serializer.errors["lines"][1]["quantity"]`. Older versions returned a list with `{}` for valid items, and `LIST_SERIALIZER_ERRORS_AS_DICT = False` restores that, deprecated. A plain `many=True` serializer creates many objects but refuses to update them unless its `ListSerializer` defines `update()`; it accepts an empty list unless `allow_empty=False`.
+
+**Output.** Assert the exact key set, `assertEqual(set(data), {...})`, so that a key added by accident (a leak) or removed (a client break) fails. Write-only fields must be absent. Assert values as clients receive them: `DecimalField` output is a string (`"12.50"`), datetimes are ISO 8601 in the current time zone, and a null value is a key present with `None`, which clients treat differently from a missing key. Test computed values (`SerializerMethodField`, `to_representation()`) at their boundaries, such as rounding, against literal expected values rather than values recomputed with the code's own formula.
+
+**Context.** For each branch of behavior that reads `self.context` (the request's user, tenant, or language), test with the context the callers pass. A missing context matters only if a caller omits it; `CurrentUserDefault` without a request raises `KeyError`, not a validation error.
+
+**Query count.** DRF never prefetches: related fields, nested serializers, and method fields query once per row unless the caller's queryset prefetched. When the serializer promises to work from prefetched data, serialize at least two prefetched rows inside `assertNumQueries(0)`, or the exact number it may run. Never pin a count measured on an unprefetched queryset, which locks the N+1 in. On a prefetched relation, `.all()`, `.count()`, and `.exists()` use the prefetch cache, but `.filter()`, `.order_by()`, and `.first()` query again.
+
+**Time.** A rule that compares with the current time (a start in the future, an expiry) needs a pinned clock: patch `timezone.now` where the serializer looks it up, or use the project's time-machine or freezegun, and test the exact instant of the boundary and the first instant past it. With a live clock, "one hour ago" and "tomorrow" pass whether the rule uses `<` or `<=`.
+
+**Output caching.** `serializer.data` is computed once and cached, and `save()` after reading `.data` raises `AssertionError`. To see output after a change, build a new serializer.
+
+## Writing the tests
 
 ```python
-def test_rejects_unknown_role(self):
-    serializer = AssignmentFormSerializer(
-        data=self._payload(role="not-a-role"), context=self.context
-    )
+from decimal import Decimal
+from types import SimpleNamespace
 
-    self.assertFalse(serializer.is_valid())
-    self.assertEqual(set(serializer.errors), {"role"})
-    self.assertIn("not a valid choice", str(serializer.errors["role"][0]))
+from django.test import TestCase
+
+from tracker.models import Member, Task, Team
+from tracker.serializers import TaskListSerializer, TaskSerializer
+
+
+class TaskSerializerTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):  # shared rows, created once; each test sees its own deep copy
+        cls.team = Team.objects.create(name="Core")
+        cls.ada = Member.objects.create(team=cls.team, name="Ada")
+        cls.outsider = Member.objects.create(team=Team.objects.create(name="Other"), name="Eve")
+
+    def setUp(self):
+        self.context = {"request": SimpleNamespace(user=None, team=self.team)}  # what the view passes
+
+    def _serializer(self, instance=None, partial=False, **fields):
+        data = fields if partial else {"title": "Fix login", "assignee": self.ada.pk, "estimate_hours": "1.5"} | fields
+        return TaskSerializer(instance, data=data, partial=partial, context=self.context)
+
+    def test_assignee_from_another_team_is_rejected(self):
+        serializer = self._serializer(assignee=self.outsider.pk)
+        self.assertFalse(serializer.is_valid())
+        self.assertEqual(serializer.errors["assignee"][0].code, "does_not_exist")
+        self.assertFalse(Task.objects.exists())
+
+    def test_marking_done_without_assignee_is_rejected(self):
+        task = Task.objects.create(team=self.team, title="Fix", estimate_hours=1)
+        serializer = self._serializer(task, partial=True, status="done")
+        self.assertFalse(serializer.is_valid())
+        self.assertEqual(serializer.errors["non_field_errors"][0].code, "done_without_assignee")
+
+    def test_partial_update_keeps_fields_not_sent(self):
+        task = Task.objects.create(team=self.team, title="Old", assignee=self.ada, estimate_hours=2)
+        serializer = self._serializer(task, partial=True, title="New")
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        task.refresh_from_db()
+        self.assertEqual((task.title, task.assignee, task.estimate_hours), ("New", self.ada, Decimal("2.00")))
+
+    def test_output_is_exactly_the_public_fields(self):
+        task = Task.objects.create(team=self.team, title="Fix", estimate_hours=Decimal("1.5"), private_note="secret")
+        data = TaskSerializer(task, context=self.context).data
+        self.assertEqual(set(data), {"id", "title", "status", "assignee", "estimate_hours"})
+        self.assertEqual((data["estimate_hours"], data["assignee"]), ("1.50", None))
+
+    def test_list_serializes_prefetched_rows_without_queries(self):
+        for title in ("A", "B"):
+            Task.objects.create(team=self.team, title=title, assignee=self.ada, estimate_hours=1)
+        tasks = list(Task.objects.select_related("assignee").order_by("title"))
+        with self.assertNumQueries(0):
+            data = TaskListSerializer(tasks, many=True).data
+        self.assertEqual([row["assignee_name"] for row in data], ["Ada", "Ada"])
 ```
 
-**Boundary testing — one valid payload, break one field per test:**
+- Instantiate the serializer directly, with the context its callers pass; going through a view or test client mixes in authentication, permissions, and routing, and hides which layer broke.
+- On the valid path, `self.assertTrue(serializer.is_valid(), serializer.errors)` shows the errors when it fails. Avoid `is_valid(raise_exception=True)` on the invalid path, since the error structure is what you assert.
+- Put rows most tests share in `setUpTestData`; its attributes must support `copy.deepcopy`. Create what a test changes inside that test.
+- Name each test after the rule it checks, so a failure reads as the broken promise.
 
-```python
-def _payload(self, **overrides):
-    return {"name": self.part_name.pk, "code": "PART-001", "quantity": "2.0", **overrides}
-```
+## When a test exposes a bug
 
-Payload-builder method per serializer: override IS the scenario.
+If a test written from the promise fails because the serializer breaks it, keep the test as written and failing, leave the serializer unchanged, and finish the rest. Never add a test that asserts behavior you believe is wrong. In your report, name the failing test, the input, and what the promise says, so the user can decide whether to fix the serializer. This applies to bugs you find; a change the user asked for follows [references/changing-serializers.md](references/changing-serializers.md).
 
-**Partial update — changed vs unchanged, separate from full update:**
+## Finish
 
-```python
-def test_partial_update_changes_only_code(self):
-    part = self._create_part()
-    serializer = PartPartialUpdateSerializer(part, data={"code": "NEW"}, partial=True, context=self.context)
+Run the new or changed tests with the project's test command, limited to the modules you touched. They pass, except tests you kept because they expose a bug.
 
-    self.assertTrue(serializer.is_valid(), serializer.errors)
-    serializer.save()
-    part.refresh_from_db()
-    self.assertEqual(part.code, "NEW")
-    self.assertEqual(part.quantity, Decimal("2.0"))  # untouched field survived
-```
+Report what you tested, the bugs found with their failing tests, and anything the tests cannot prove, such as a database constraint no serializer checks, which reaches clients as a server error.
 
-**Read serializer — exact keys against known fixtures:**
+To find serializers no test mentions at all, when covering a whole app or reviewing, search the test files for each serializer class name; a serializer tested only through a parent that nests it can look untested.
 
-```python
-def test_list_representation(self):
-    part = self._create_part()
-    data = PartListSerializer(part, context=self.context).data
-
-    self.assertEqual(set(data.keys()), {"id", "name", "code", "quantity", "status"})
-    self.assertEqual(data["name"], "Brake Pad")  # translated via context language
-```
-
-**Query budget — representation cost is contract when serializer touches relations:**
-
-```python
-def test_detail_representation_query_budget(self):
-    vehicle = Vehicle.objects.prefetch_related("labels").get(pk=self.vehicle.pk)
-
-    with self.assertNumQueries(0):
-        data = VehicleDetailSerializer(vehicle, context=self.context).data
-
-    self.assertEqual(data["labels"], [self.vehicle_label.pk])
-```
-
-**Context — pass whenever behavior depends on it.** Request-like object enough (project base often provides a builder); full `APIRequestFactory` only when serializer reads real request attributes:
-
-```python
-def setUp(self):
-    request = SimpleNamespace(user=self.manager_user, auth=SimpleNamespace(company=self.company))
-    self.context = {"request": request}
-```
-
-## Anti-patterns
-
-- `assertFalse(serializer.is_valid())` without error inspection — passes for wrong error.
-- `is_valid(raise_exception=True)` in tests — loses `serializer.errors` structure.
-- Testing inherited DRF field mechanics (`IntegerField` rejecting `"abc"` with no custom config).
-- Asserting only instance returned by `save()` — generated/derived values may differ in DB; `refresh_from_db()` first.
-- Per-test fixtures every test needs — use `setUpTestData` (once per class, isolated per test).
-- Shared mutable state between tests; each test builds own payload.
-- Re-reading `serializer.data` after mutation — `.data` cached on first access; re-instantiate serializer to observe changes.
-
-## Version notes
-
-- `setUpTestData` attrs deep-copied per test since Django 3.2; Django 6.0 **requires** deepcopyable — mutating fixture in test safe + isolated; never stash non-copyable objects (open files, connections) on class.
-- DRF 3.16+ generates uniqueness validators from `Meta.constraints` `UniqueConstraint` (nullable + conditional) — most conflicts surface in `serializer.errors`, not `IntegrityError`.
-- Queryset comparisons: `assertQuerySetEqual` (capital S) with real objects; string/`repr` comparison gone (Django 5.1+).
-- DRF 3.17/3.18: no serializer contract change — Django 6 + Python 3.14 support, security fixes.
-
-## Bundled resources
-
-- `references/holuto.md` — Holuto api project: stack pins, test bases, helper list, fixtures, paths, run command. Read when working in that repo.
-- `scripts/untested_serializers.py` — print serializer classes unreferenced by any test. Usage: `python scripts/untested_serializers.py /path/to/project/src`.
-- `scripts/coverage_map.py` — per-class checklist of owned fields/validators/hooks mapped to required tests. Usage: `python scripts/coverage_map.py path/to/serializers.py [ClassName]`.
-
-## Quick verify (before finishing)
-
-Context present when needed. Valid + invalid paths; error structure asserted; every custom validator branch + owned field covered; normalization asserted when relevant. Writable serializer: create, full update, partial update (field diff), `save(**kwargs)` path when parent supplies relations; rejected writes leave DB clean; post-save persisted state + related/M2M side effects asserted. Scoped relation IDs: in-scope passes, out-of-scope fails. Uniqueness conflicts pre-created. Read output: exact keys, computed/translated fields, no `write_only` keys; query budget asserted when representation touches relations. Nested writes + nested error structure when feature exists.
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/serializers/
-- https://www.django-rest-framework.org/api-guide/validators/
-- https://www.vintasoftware.com/blog/how-i-test-my-drf-serializers
-- https://testdriven.io/blog/drf-serializers/
+For many serializers at once with subagents, give each subagent a whole module, since sibling serializers share bases and fixtures, and have them write tests only; run the new test modules one at a time at the end, because parallel `manage.py test` runs can collide on a shared test database.

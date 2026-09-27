@@ -1,161 +1,128 @@
 ---
 name: django-model-testing
-description: Write unit tests for Django model behavior — full_clean()/clean() validation, database constraints (ValidationError vs IntegrityError), custom save()/delete(), soft delete, custom managers and querysets, and transaction.on_commit(). Use whenever the user asks to test models, managers, querysets, or constraints, mentions models.py or tests under tests/models/, or asks to "add tests" for code that turns out to be a Django model. Model-layer contract only — not for DRF serializer tests (serializer.is_valid/errors) or view tests.
+description: Writes, maintains, and reviews unit tests for Django models across their lifecycle so the tests catch real regressions — covering existing models, changing a model's behavior test-first, deciding what to do when a model test starts failing, testing data migrations (RunPython), and reviewing existing model tests. Covers validation (full_clean, clean, validators), constraints, custom save()/delete(), soft delete, managers and querysets, signals, and transaction.on_commit. Use whenever a task writes, reviews, updates, or fixes tests for Django models, managers, querysets, or data migrations, and whenever it changes a Django model's behavior (a rule, limit, field, or constraint in models.py), since the model's tests change with it. Also use for an "add tests" request on code that turns out to be a Django model, a failing model test, or a question about what existing model tests miss or get wrong. Not for DRF serializer or view tests.
 ---
 
-# Django Model Testing
+# Testing Django models
 
-Test **model contract** — validation rules, constraint enforcement, save/delete effects, manager scoping — never Django internals. Django ships behavior (`auto_now`, plain `CharField` max_length): trust it. Test only what model *adds*: `clean()`, validators, constraints, custom save/delete, managers, `on_commit` hooks.
+A model test exists to fail when the model's behavior breaks. Coverage does not show that: a test can run every line and still pass when the logic is wrong, because it asserts too little or asserts what the code happens to do. Every task below uses the standard in this file; read the reference that matches the task too.
 
-## Workflow
+| Task | Read |
+| --- | --- |
+| Add tests for models that already exist | this file |
+| Add or change model behavior, or a model test starts failing | this file and [references/changing-models.md](references/changing-models.md) |
+| Test a data migration (`RunPython`) | this file and [references/data-migrations.md](references/data-migrations.md) |
+| Review existing model tests | this file and [references/reviewing.md](references/reviewing.md) |
 
-1. **Read model and everything it touches** — fields, validators, `clean()`, `Meta.constraints`, `save()`/`delete()` overrides, custom managers/querysets, signals, `transaction.on_commit()` calls, related models. Never test code not read.
-2. **Find project's model test base.** Look for existing base class before raw `TestCase` boilerplate; reuse its fixtures and assertion helpers, never hand-roll. Project-specific conventions (bases, fixtures, run command): read `references/` — see Bundled resources.
-3. Coverage gaps unknown? Run `scripts/untested_models.py <project-src-dir>` — lists model classes no test references (abstract bases show up here; test them through a concrete subclass).
-4. **Classify what model owns**; pick coverage from table below. `scripts/coverage_map.py <models.py> [Class]` prints per-class checklist — validators, save/delete overrides, constraints, branching properties, `on_commit` — mapped to required tests.
-5. **Write tests**: one behavior per test, explicit setup, exact assertions. Mirror app's test path convention (`<app>/tests/models/test_<name>.py`).
-6. **Run tests** for touched module only, not whole suite.
+## The standard
 
-**Batch coverage** (many untested models, subagents available): shard by MODULE, one subagent per module — never per class (abstract bases + their concrete subclasses belong to one worker). Each subagent brief: this SKILL.md path + target module + output test path; workers write tests only — syntax check (`ast.parse`) at most; never run suite/linters mid-batch. Orchestrator merges, then runs new test modules **serially** at the end — concurrent `manage.py test` invocations collide on the shared `test_<dbname>` database. No subagents: work through gap list module by module, same rule.
+A good model test states one rule the model promises, sets up the smallest case where that rule makes a visible difference, and asserts the outcome exactly. Before keeping a test, ask: if someone deleted or inverted the code behind this rule, would this test fail? If not, it is decoration.
 
-## What to cover
+That question drives the choices below.
 
-| Area | Do |
-|------|-----|
-| **Validation** | One passing `full_clean()` when model has custom validation, validators, choices, or inherited rules. One failing `full_clean()` per real invalid branch: `clean()`, cross-field rules, validators, choices, boundaries. `save()` never validates: validator-guarded field gets one test documenting the bypass (invalid value saves raw without `full_clean()`) — pins the trust boundary callers rely on. Pin failures to field via `message_dict`. |
-| **Constraints** | Each `unique`, `UniqueConstraint`, `CheckConstraint`, one-to-one rule: validation-layer test if writes route through `full_clean()`; DB-write-failure test when database is real enforcement layer (bulk paths, race windows). Often both. Soft-delete model with unconditional unique constraint: soft-deleted row still occupies constraint, and validation checks via default manager may miss conflict DB insert hits — test that interaction (fix is condition=Q(deleted_at__isnull=True) or similar). |
-| **save()** | Every custom effect: trim, normalize, derived fields, linked defaults, UUIDs, timestamps, `update_fields` when it changes outcome — state-tracking overrides (became-ready style) misfire when `update_fields` omits tracked field: test that path. `bulk_create`/`bulk_update`/`QuerySet.update()` bypass `save()` and signals entirely — callers use bulk paths: one test stating expected behavior there. After save, reload and assert **stored** values. |
-| **delete()** | Custom delete: soft/hard/restore, protected paths (`ProtectedError`/`RestrictedError`), external side effects. `QuerySet.delete()` does **not** call instance `delete()` — model overrides delete: test queryset path too (or custom queryset that mirrors it). |
-| **Relations** | Only where model defines behavior: cascade, `PROTECT`, `SET_NULL`, one-to-one limits, m2m state that matters, cross-model validation. |
-| **Managers / querysets** | Custom methods: inclusion *and* exclusion (rows that must not appear — other tenant, soft-deleted), ordering, prefetch. Query count only if count is part of contract. |
-| **Computed reads** | Properties/methods with branching or calculation: read contract — test boundaries. Trivial delegation (`return self.x`): skip. `GeneratedField`/`db_default`: DB computes value — assert **after** `refresh_from_db()`, never on in-memory instance. Annotations encoding business rules: assert resulting rows/values, never SQL text. |
-| **Inheritance** | Shared base behavior only if concrete model's contract depends on it (soft-delete, active-only managers). |
-| **Files** | Project rules: metadata, helpers, parent rules, delete behavior — not Django storage internals. |
-| **on_commit** | Model uses `transaction.on_commit()`: assert with `captureOnCommitCallbacks()`. `TransactionTestCase` only if `TestCase` cannot prove it. |
-| **Signals** | Receivers the app registers on model: trigger action, assert **effect** (row/state change); complex receiver: test function directly + one test proving connection. Bulk paths (`bulk_create`, `QuerySet.update()`) never fire save signals — receiver's effect load-bearing: test the bypass path expectation too. Fixture noise: disconnect/mute receivers around setup, never globally. |
+- **Expected values come from the promise, not the code.** The promise is what the method's name, docstring, and callers say it does. Reading the implementation and asserting what it returns only proves the code equals itself, and it passes on the bug. When the promise and the code disagree, you have found a bug (see "When a test exposes a bug").
+- **Inputs must discriminate.** Use input the rule changes: lowercase text for an uppercasing save, the exact boundary value and the first value past it for a limit, a row on each side of a queryset filter or a constraint's condition. Input that already satisfies the rule tests nothing.
+- **Assert stored state.** Reload with `refresh_from_db()` or query again before asserting what was saved; the in-memory instance can differ from the row.
+- **Assert the exact failure.** Pin a `ValidationError` to its key (and its code when callers branch on it), and an exception to its class. A bare `assertRaises(ValidationError)` or `assertRaises(Exception)` passes on the wrong error.
+- **Assert what must not happen too.** Rows a queryset must leave out, a notification a save must not send, a field a partial save must not lose. Exclusion is usually where the bugs are.
 
-**Skip:** plain field declarations with no project rule, Django internals, coverage already proven at serializer or view layer.
+## Find the promise
 
-## Core patterns
+Read the model and everything that gives it behavior before writing anything: fields and validators, `clean()`, `Meta.constraints`, `save()` and `delete()` overrides, managers and querysets, abstract bases in other modules, signal receivers (usually `signals.py`, connected in `apps.py`), `transaction.on_commit()` calls, and the code that calls the model, especially bulk writes and partial saves. As you read, compare each method's promise with what its code does.
 
-**Class fixtures + builder pair — `setUpTestData` for shared rows, unsaved instance for validation tests, validated create for rest:**
+Follow the project's testing conventions: its base test classes, fixture and assertion helpers, factories, file layout, tags, and test command. Look in AGENTS.md or CLAUDE.md, the tests of neighboring models, and CI config, and reuse what exists rather than hand-rolling setup.
 
-```python
-@classmethod
-def setUpTestData(cls):  # once per class; per-test isolation via deepcopy
-    cls.workshop = cls.setup_workshop()
+Test what the project added, not Django: skip plain fields, `max_length`, `auto_now`, and foreign keys that merely exist.
 
-def _unsaved_order(self, **kwargs):
-    attrs = {"workshop": self.workshop, "number": "RO-1", "total": Decimal("10")}
-    attrs.update(kwargs)
-    return RepairOrder(**attrs)
+## Behaviors and their traps
 
-def _create_order(self, **kwargs):
-    order = self._unsaved_order(**kwargs)
-    order.full_clean()
-    order.save()
-    order.refresh_from_db()
-    return order
-```
+**Validation.** `save()` never validates; only `full_clean()` does, running `clean_fields()`, then `clean()`, then `validate_unique()`, then `validate_constraints()`, and merging all errors into one `ValidationError`. Test validation on an unsaved instance through `full_clean()`: one passing case, then one failing case per rule, each pinned to its key in `message_dict`. When `save()` normalizes a field (trims, uppercases) that a validator or constraint checks, validation runs on the raw value first: test that a duplicate typed differently is still caught.
 
-**Validation — pass, and each failing branch pinned to field:**
+**Constraints.** Test each constraint where writes actually meet it: through `full_clean()` when writes are validated, and as an `IntegrityError` on save when the database is the guard (bulk writes, races). Constraint errors from `full_clean()` land under `NON_FIELD_ERRORS`, except a single-field unique constraint, which lands under its field. Pin the key and the code: a conditional or check constraint reports its `violation_error_code`, but a unique constraint on plain fields reports Django's own `unique` or `unique_together` code unless it also sets a custom message, so confirm the code by running the violation once. For a conditional constraint (`condition=Q(...)`), test both sides: the conflict it forbids, and the same values allowed where the condition does not hold. Database-specific behavior, such as `nulls_distinct`, is enforced only by the database that supports it; if tests run on a different backend than production, say which constraints the tests cannot prove.
 
-```python
-def test_valid_order_passes_full_clean(self):
-    self._unsaved_order().full_clean()
+**save() overrides.** Assert each effect on the stored row. Partial saves are where overrides break: when a field the override changes or reacts to is left out of `update_fields`, the change may never be written, and an effect keyed to a change, such as a notification when a status becomes ready, may fire for a value that was never saved. Test that path. `bulk_create()`, `bulk_update()`, and `QuerySet.update()` skip `save()` and signals; when callers use them, add a test stating what happens there.
 
-def test_full_clean_rejects_closed_without_timestamp(self):
-    order = self._unsaved_order(status=RepairOrder.Status.CLOSED, closed_at=None)
-    with self.assertRaises(ValidationError) as ctx:
-        order.full_clean()
-    self.assertIn("closed_at", ctx.exception.message_dict)
-```
+**delete(), soft delete, restore.** Read which rows are removed and which are only marked, and test every branch: hard delete, soft delete, what blocks it (`ProtectedError`, `RestrictedError`, related rows), what cascades, and `restore()`. Test how deleted rows stay out of reads: through the default manager, a second manager, or a queryset method. Reverse relations (`parent.children.all()`) use the default manager's class, so they hide deleted rows only if that manager does; a forward foreign key or one-to-one (`child.parent`) uses the base manager and returns a deleted row anyway. `QuerySet.delete()` never calls the instance's `delete()`: when the model overrides `delete()`, test the queryset path, and whether a custom queryset mirrors the override.
 
-Boundary sweeps inside `with self.subTest(value=...):` so one failing value never hides rest.
+**Managers and querysets.** For each custom method, assert both the rows it returns and the rows it must leave out, such as another tenant's, closed, or deleted rows. Build the data so every excluded category is present. Test chaining when callers chain (`Model.objects.alive().for_company(c)`), and query counts only when a budget is part of the contract.
 
-**Constraints — both layers.** Since Django 4.1 `full_clean()` also validates `Meta.constraints` (→ `ValidationError`); direct save bypasses that, hits DB (→ `IntegrityError`). `IntegrityError` breaks test's wrapping transaction — every later ORM call raises `TransactionManagementError` — so nest atomic block:
+**Signals.** Trigger the model action and assert the receiver's effect on stored state. For a complex receiver, test the function directly plus one test proving it is connected. When fixture setup fires receivers you are not testing, silence them around that setup only.
+
+**on_commit.** `TestCase` wraps each test in a transaction that never commits, so `on_commit` callbacks never run on their own, and a test that does not capture them passes even when the callback is broken. Patch what the callback calls, capture with `captureOnCommitCallbacks()`, assert nothing ran yet, then run the captured callbacks and assert the effect: that proves both the effect and that it waits for the commit. Also test a save that must queue nothing, such as one that does not make the transition. Use `TransactionTestCase` only when real commit or rollback behavior is what you are testing.
+
+**Generated and database values.** `GeneratedField`, `db_default`, and expression-assigned values are computed by the database. Assert them after `refresh_from_db()`, and for an annotation that encodes a business rule, assert the resulting values, never the SQL.
+
+**Time.** A rule that depends on the current time needs a pinned clock, or the test drifts across midnight, month ends, and time zones. Use the project's tool (time-machine, or freezegun if that is what it uses), or patch `django.utils.timezone.now` if it has none, and set the clock right at the boundary the rule cares about.
+
+**Properties and methods.** Test those that branch or calculate, at their boundaries; skip plain delegation such as returning a field.
+
+**Abstract bases.** Test a base's behavior through a concrete model that uses it, preferably a real subclass the project already has; an abstract model has no table.
+
+## Writing the tests
 
 ```python
-def test_duplicate_number_fails_full_clean(self):
-    existing = self._create_order()
-    with self.assertRaises(ValidationError):
-        self._unsaved_order(number=existing.number).full_clean()
+from unittest.mock import patch
 
-def test_duplicate_number_raises_integrity_error_when_saved_without_validation(self):
-    existing = self._create_order()
-    with self.assertRaises(IntegrityError), transaction.atomic():
-        self._unsaved_order(number=existing.number).save()
-    self.assertEqual(RepairOrder.all_objects.count(), 1)  # ORM still usable
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
+from django.db import IntegrityError, transaction
+from django.test import TestCase
+
+from shop.models import Order, Shop
+
+
+class OrderTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):  # shared rows, created once; each test sees its own deep copy
+        cls.shop = Shop.objects.create(name="Main")
+
+    def _order(self, **fields):  # unsaved, for validation tests
+        return Order(**{"shop": self.shop, "number": "ro-1"} | fields)
+
+    def test_closed_order_requires_closed_at(self):
+        with self.assertRaises(ValidationError) as ctx:
+            self._order(status=Order.Status.CLOSED, closed_at=None).full_clean()
+        self.assertIn("closed_at", ctx.exception.message_dict)
+
+    def test_number_is_unique_per_shop(self):
+        Order.objects.create(shop=self.shop, number="RO-1")
+        with self.assertRaises(ValidationError) as ctx:
+            self._order(number="RO-1").full_clean()
+        self.assertEqual(ctx.exception.error_dict[NON_FIELD_ERRORS][0].code, "unique_together")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Order.objects.create(shop=self.shop, number="RO-1")
+
+    def test_save_stores_number_uppercase(self):
+        order = Order.objects.create(shop=self.shop, number="ro-2")
+        order.refresh_from_db()
+        self.assertEqual(order.number, "RO-2")
+
+    @patch("shop.models.notify_ready.delay")
+    def test_becoming_ready_notifies_after_commit(self, notify):
+        order = Order.objects.create(shop=self.shop, number="RO-3")
+        with self.captureOnCommitCallbacks() as callbacks:
+            order.status = Order.Status.READY
+            order.save()
+        notify.assert_not_called()
+        for callback in callbacks:
+            callback()
+        notify.assert_called_once_with(order.pk)
 ```
 
-**save() effects — assert stored row, not Python object:**
+- Wrap every expected `IntegrityError` in `transaction.atomic()`: without it the failed statement breaks the test's transaction and every later query fails.
+- Put rows most tests share in `setUpTestData`; its attributes must support `copy.deepcopy`. Create what a test changes inside that test.
+- Compare querysets with `assertQuerySetEqual`, or sets of primary keys when order does not matter.
+- Name each test after the rule it checks, so a failure reads as the broken promise.
 
-```python
-def test_save_normalizes_number(self):
-    order = self._create_order(number="  ro-1 ")
-    self.assertEqual(order.number, "RO-1")  # _create_order reloaded it
-```
+## When a test exposes a bug
 
-In-memory instance can differ from row (`db_default`, `update_fields` skipping field, DB-side casing) — `refresh_from_db()` before asserting persistence.
+If a test written from the promise fails because the model breaks it, keep the test as written and failing, leave the model unchanged, and finish the rest. Never add a test that asserts behavior you believe is wrong. In your report, name the failing test, the input, and what the promise says, so the user can decide whether to fix the model. This applies to bugs you find; a model change the user asked for follows [references/changing-models.md](references/changing-models.md).
 
-**Soft delete — flag set, default manager excludes, escape hatch still sees it:**
+## Finish
 
-```python
-def test_delete_soft_deletes_and_hides_from_default_manager(self):
-    order = self._create_order()
-    order.delete()
-    order.refresh_from_db()
-    self.assertIsNotNone(order.deleted_at)
-    self.assertFalse(RepairOrder.objects.filter(pk=order.pk).exists())
-    self.assertTrue(RepairOrder.all_objects.filter(pk=order.pk).exists())
-```
+Run the new or changed tests with the project's test command, limited to the modules you touched. They pass, except tests you kept because they expose a bug.
 
-**on_commit — `TestCase` never commits, so capture callbacks:**
+Report what you tested, the bugs found with their failing tests, and anything the tests cannot prove, such as constraints the test database does not enforce.
 
-```python
-@patch("workshop.tasks.notify_order_ready.delay")
-def test_ready_transition_enqueues_notification_on_commit(self, mock_delay):
-    order = self._create_order()
-    with self.captureOnCommitCallbacks(execute=True):
-        order.status = RepairOrder.Status.READY
-        order.save()
-    mock_delay.assert_called_once_with(order.pk)
-```
+To find models no test mentions at all, when covering a whole app or reviewing, search the test files for each model class name; an abstract base can look untested when only its subclasses are.
 
-`execute=False` + invoke callbacks yourself when contract is *when* effect fires (external delete only after commit). `TransactionTestCase` only when real commit/rollback semantics are thing under test — order of magnitude slower.
-
-## Anti-patterns
-
-- `assertRaises(Exception)` or unpinned `assertRaises(ValidationError)` — test passes for *wrong* error. Assert field (`message_dict`) or exact exception class.
-- `IntegrityError` without nested `transaction.atomic()` — poisons test transaction; every later ORM call fails confusingly.
-- Testing validation through `objects.create()` — never runs `full_clean()`; proves nothing about `clean()` or validators.
-- Asserting instance returned by `save()` when save normalizes or derives values — `refresh_from_db()` first.
-- Per-test fixtures every test needs — use `setUpTestData` (once per class, isolated per test); mutable setup goes in test that mutates.
-- `TransactionTestCase` when `captureOnCommitCallbacks()` suffices — order of magnitude slower.
-- Manager tests asserting only inclusion — exclusion (other tenant, soft-deleted) usually actual contract.
-- Duplicating serializer/view coverage at model layer.
-
-## Version notes (Python 3.14, Django 6.1)
-
-- `full_clean()` validates `Meta.constraints` since Django 4.1 (opt out per-call: `validate_constraints=False`); `save()` never validates anything.
-- `CheckConstraint` takes `condition=` — `check=` kwarg removed in Django 6.0. Read constraints from `Meta` before writing tests; never guess names.
-- `GeneratedField` (Django 5.0+) and `db_default`: value computed by database — in-memory instance stale until `refresh_from_db()`.
-- `setUpTestData` class attributes deep-copied per test since Django 3.2; Django 6.0 **requires** deepcopyable — in-memory fixture mutation isolated, but never stash non-copyable objects (open files, connections) on class.
-- Queryset comparisons: `assertQuerySetEqual` (capital S) with real objects.
-
-## Bundled resources
-
-- `scripts/coverage_map.py` — per-class checklist of validators, overrides, constraints, properties mapped to required tests. Usage: `python scripts/coverage_map.py path/to/models.py [ClassName]`.
-- `references/holuto.md` — Holuto api project: `ModelTestCase` helpers, fixtures, untested abstract bases, test tags, paths, run command. Read when working in that repo.
-- `scripts/untested_models.py` — print model classes unreferenced by any test. Usage: `python scripts/untested_models.py /path/to/project/src`.
-
-## Quick verify (before finishing)
-
-Meaningful validation has pass + fail `full_clean()` tests pinned to field; constraints tested at enforcing layer(s), DB-layer failures inside nested atomic; custom save/delete effects asserted after reload; delete covered on instance *and* queryset paths when overridden; managers assert exclusion, not just inclusion; branching properties and `GeneratedField`/`db_default` asserted after reload; registered receivers proven by effect (bypass paths stated); `on_commit` proven via `captureOnCommitCallbacks`; tests small, independent, named by behavior.
-
-## References
-
-- https://docs.djangoproject.com/en/6.1/topics/testing/tools/
-- https://docs.djangoproject.com/en/6.1/ref/models/constraints/
-- https://adamj.eu/tech/2020/05/20/the-fast-way-to-test-django-transaction-on-commit-callbacks/
-- https://adamj.eu/tech/2021/02/10/new-testing-features-in-django-3.2/
+For many models at once with subagents, give each subagent a whole module, since an abstract base and its subclasses belong together, and have them write tests only; run the new test modules one at a time at the end, because parallel `manage.py test` runs can collide on a shared test database.

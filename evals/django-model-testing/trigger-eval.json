@@ -1,0 +1,86 @@
+[
+  {
+    "query": "can you write tests for the Vehicle model in src/vehicles/models.py? it has a custom save that normalizes the plate and a unique constraint per company",
+    "should_trigger": true
+  },
+  {
+    "query": "add test coverage for our soft delete behavior on ServiceOrder, i want to be sure deleted orders don't show up in the default queryset",
+    "should_trigger": true
+  },
+  {
+    "query": "we have a CheckConstraint closed_after_opened on RepairOrder but i don't think anything tests it. can you fix that",
+    "should_trigger": true
+  },
+  {
+    "query": "hey the ActiveEmployeeManager.for_company() method returns other companies' rows sometimes?? write tests that prove the scoping works",
+    "should_trigger": true
+  },
+  {
+    "query": "test that the on_commit hook in Invoice.save enqueues the celery task only after the transaction commits",
+    "should_trigger": true
+  },
+  {
+    "query": "i keep getting TransactionManagementError in my test right after asserting an IntegrityError, what's the right pattern here? add a proper test",
+    "should_trigger": true
+  },
+  {
+    "query": "write tests for users/models.py",
+    "should_trigger": true
+  },
+  {
+    "query": "our clean() method on StorageReceipt validates that quantity <= capacity, nothing covers it. add tests incl boundary values",
+    "should_trigger": true
+  },
+  {
+    "query": "prod bug: duplicate tax IDs got in even though the field is unique=True. add tests proving the DB actually rejects duplicates, we're on postgres",
+    "should_trigger": true
+  },
+  {
+    "query": "review my model tests for Payment, i think test_unique is wrong, it just does assertRaises(Exception)",
+    "should_trigger": true
+  },
+  {
+    "query": "write tests for the VehicleSerializer, it rejects plates longer than 12 chars and lowercases them in validate_plate",
+    "should_trigger": false
+  },
+  {
+    "query": "add tests for the POST /api/orders endpoint, should return 403 for other company's employees",
+    "should_trigger": false
+  },
+  {
+    "query": "can you add pytest fixtures for our FastAPI app's SQLAlchemy models? need a session fixture with rollback",
+    "should_trigger": false
+  },
+  {
+    "query": "test the OrderForm clean method, it should raise a form error when deadline is in the past",
+    "should_trigger": false
+  },
+  {
+    "query": "write unit tests for the celery task sync_inventory in workshop/tasks.py, it retries 3 times on ConnectionError",
+    "should_trigger": false
+  },
+  {
+    "query": "our django admin list_filter for RepairOrder is broken, can you add a regression test for the admin changelist",
+    "should_trigger": false
+  },
+  {
+    "query": "add e2e tests with playwright for the order creation flow",
+    "should_trigger": false
+  },
+  {
+    "query": "write a migration test that verifies the data migration 0042 backfills order numbers correctly",
+    "should_trigger": true
+  },
+  {
+    "query": "test the permission class IsCompanyMember on the orders viewset",
+    "should_trigger": false
+  },
+  {
+    "query": "benchmark our RepairOrder queryset, the list endpoint is slow, maybe missing select_related",
+    "should_trigger": false
+  },
+  {
+    "query": "appointments can now be up to 3 hours long instead of 2, change the limit in scheduling/models.py",
+    "should_trigger": true
+  }
+]

@@ -1,184 +1,157 @@
 ---
 name: drf-view-testing
-description: Write tests for Django REST Framework views and viewsets — endpoint contracts, auth, permissions, tenant scoping, pagination, filters, writes with DB side effects, custom @action endpoints. Use whenever user asks to test, cover, or verify a DRF view, ViewSet, API endpoint, or route, mentions APIClient, APIRequestFactory, force_authenticate, permission/403/401 tests, or asks for tests for views.py files or tests under tests/views/, even if they just say "add tests" for code that turns out to be a view.
+description: Writes, maintains, and reviews tests for Django REST Framework views and viewsets across their lifecycle so the tests catch real regressions — covering existing endpoints, changing an endpoint's access, queryset, actions, or responses test-first, deciding what to do when a view test starts failing (including after a DRF or django-filter upgrade), and reviewing existing view tests. Covers 401 vs 403, per-action permissions, tenant scoping on every route (broken object-level authorization), custom and inherited actions, writes and side effects, pagination, filters and ordering, disabled methods, and query counts. Use whenever a task writes, reviews, updates, or fixes tests for DRF views, viewsets, or API endpoints, and whenever it adds an endpoint or changes one's permissions, queryset, actions, or responses, since the tests change with it. Also use for an "add tests" request on code that turns out to be a DRF view, or a failing view test. Not for serializer or model tests.
 ---
 
-# DRF View Testing
+# Testing DRF views
 
-Test **endpoint contract**: status, response shape, access, scoping, DB side effects. Never re-test serializer/model internals — own suites cover those. View test answers: this URL, this caller, this payload — this observable outcome?
+A view decides who may do what to which rows: it authenticates the caller, checks permissions per action, limits every route to the rows the caller may reach, and turns requests into writes and side effects. A view test exists to fail when any of that breaks. Coverage does not show that: a test can hit every route and still pass when the logic is wrong, because it asserts only a status code, or only for the role that is allowed. Every task below uses the standard in this file; read the reference that matches the task too.
 
-**User naming one behavior never shrinks contract.** "Test pagination" still means: auth statuses, invalid input, scoping for that endpoint. Quick-verify list = gate, not suggestion.
+| Task | Read |
+| --- | --- |
+| Add tests for endpoints that already exist | this file |
+| Add or change an endpoint's access, queryset, actions, or responses, or a view test starts failing | this file and [references/changing-views.md](references/changing-views.md) |
+| Review existing view tests | this file and [references/reviewing.md](references/reviewing.md) |
 
-## Workflow
+## The standard
 
-1. **Read view + all it touches**: ViewSet, every inherited mixin (shared bases add pagination validation, per-action serializers, extra `@action`s), `get_queryset()` scoping, permission classes, throttles, URLconf. No test for untraced contract. Asked to cover a view: **enumerate actions** — `python <skill-dir>/scripts/audit_actions.py <views.py> [test_module.py] --shared <shared-mixins.py>…` lists router defaults + `@action`s (own + inherited from `--shared` files), flags untested, prints unresolved bases for manual check. Cover each; deliberate exclusions named in the test module's docstring (`"""Not covered: mutual_settlement (out of scope)."""`) — silence is a gap.
-2. **Find project view test base** before raw boilerplate — see [Project reference](#project-reference). Reuse its fixtures + request builders.
-3. **Pick invocation level** (ladder below).
-4. **Write tests**: one behavior per test, behavior-named, exact assertions. Shared fixtures `setUpTestData`, per-test mutable state `setUp`. Path: `<app>/tests/views/test_<name>.py`.
-5. **Run touched module only**, not whole suite.
+A good view test states one rule the endpoint promises, sets up the smallest case where that rule makes a visible difference, and asserts the outcome exactly. Before keeping a test, ask: if someone deleted or inverted the code behind this rule, would this test fail? If not, it is decoration.
 
-## Invocation ladder
+That question drives the choices below.
 
-| Level | When | How |
-|-------|------|-----|
-| **Direct viewset call** (default) | Contract = action itself | `APIRequestFactory` + `force_authenticate(request, user=…, token=…)` + `ViewSet.as_view({"get": "list"})(request)` — no middleware/routing noise |
-| **`APIClient` + `force_authenticate`** | Routing, headers, content negotiation, multipart, download part of contract | `client.force_authenticate(user=…, token=…)` then `client.get(url)` |
-| **Full HTTP flow** | Auth mechanism itself under test | Real login (`POST /auth/login/`), then `client.credentials(HTTP_AUTHORIZATION="Token " + token)` |
+- **Expected values come from the promise, not the code.** The promise is what the view's docstring, the project's rules, and the API's clients say the endpoint does. Reading `get_permissions()` and asserting what it returns only proves the code equals itself, and it passes on the bug. When the promise and the code disagree, you have found a bug (see "When a test exposes a bug").
+- **Test every caller that matters, not just the allowed one.** For each action: each role that may use it, each role that may not, an anonymous caller, and a caller from another tenant. A test run only as the most privileged role passes when a permission check is missing.
+- **Seed the rows that must be left out.** Another tenant's rows, archived or deleted rows, rows a filter excludes. A list test whose every seeded row belongs in the result passes when the scoping or the filter is gone.
+- **Assert the exact outcome.** The exact status code, the body keys the client reads (error keys, ids in the order promised), and, after a write, the stored rows reloaded from the database, including rows that must not have changed.
+- **Assert what must not happen.** A refused request writes nothing and queues nothing; a request for another tenant's row changes nothing; a client-sent owner or tenant is ignored.
 
-`APIRequestFactory` returns Django `HttpRequest`, not DRF `Request` — setting `.user`/`.token` directly does nothing; always `force_authenticate`.
+## Find the promise
 
-## What to cover
+Read the view and everything that gives it behavior before writing anything: the view class and every base and mixin it inherits (often in other modules, adding actions of their own), `get_queryset()`, `get_object()`, `permission_classes` and `get_permissions()`, `@action` decorators and their `permission_classes`, `get_serializer_class()`, `perform_create()`, `perform_update()`, `perform_destroy()`, `filter_backends` with their filter, search, and ordering fields, the pagination class, throttles, `http_method_names`, and the authentication classes in settings. Then read how the routes are registered, and what the clients rely on.
 
-| Area | Do |
-|------|-----|
-| **Auth** | Allowed, **unauthenticated**, **forbidden** when access matters. Unauthenticated status must match **configured** auth classes (token auth = `401`). Real client flow only when **auth mechanism** itself under test. |
-| **Permissions** | Endpoint-specific permission branches — **every allowed role** + rejected roles; **disabled actions**; exact **`403`** or **`405`**. DRF check order: URL `404` → method `405` → `has_permission` `403` → queryset `404` → object permission `403` — asserted status must match the stage that fires. |
-| **Scoping** | Endpoints narrowed by request context (company/tenant/user): create out-of-scope row, assert never appears; correct failure contract (`404` vs `403`) for **out-of-scope** detail. Missing scoping test = security gap. |
-| **List** | Actual list shape (e.g. `{"total", "results"}`). Pagination enabled/required: pagination fields + **invalid** pagination input (`400` + error keys). |
-| **Date range** | Required range: missing, bad format, reversed bounds, valid range. |
-| **Filter / search / order** | Only what endpoint exposes. Seed data where the filter **changes the result**: ≥2 rows, filter matches exactly one, assert the other absent. Search term matching all rows, or expected order equal to insertion order, proves nothing — the test must fail if the filter breaks. **Order** only when order is contract. |
-| **Shared view mixins** | Shared logic changing serializer by action or returning status-only responses — assert contract once per concrete view relying on it. |
-| **Custom payload** | Extra top-level keys, aggregates, derived collections — assert explicitly. |
-| **Validation** | Important error **keys/messages** in response — never stop at `400`. |
-| **Writes** | Success + ≥1 invalid case. Response contract + **persisted** side effects (`refresh_from_db` / re-query); **unchanged** DB on reject. Detail writes (update/delete/custom detail actions): include **out-of-scope pk** case. |
-| **Protected delete** | Delete can fail (related rows, guards): error contract + **DB unchanged**. |
-| **Custom `@action`** | Each action = own contract: success, auth, scoping, validation, side effects as applicable. |
-| **Shared extra actions** | e.g. bulk-by-pks, relation management, confirm, download, uploaded-only lists — contract + visible state changes. **No** storage-internals tests. |
-| **Query budget** | Heavy list/action endpoints: `assertNumQueries(n)` with enough fixture rows that N+1 breaks count. |
-| **Throttling** | Only when behavior depends on throttling or endpoint auth-heavy/public — not default. |
+Follow the project's testing conventions: its base test classes, request and authentication helpers, fixtures, file layout, and test command. Look in AGENTS.md or CLAUDE.md, neighboring view tests, and CI config, and reuse what exists rather than hand-rolling setup.
 
-## Core patterns
+Test what the view adds, not DRF or the serializer: leave field validation and output shape to serializer tests, and check here only that the view wires them in (a validation error reaches the client, `save()` receives the view's values).
 
-Examples below use one project's base helpers (`_manager_request`, `build_request`, `token=SimpleNamespace(…)`) — substitute your project's equivalents; the shape is the point.
+## Behaviors and their traps
 
-**Direct action call — success for allowed caller:**
+**Authentication.** Whether an anonymous caller gets 401 or 403 depends only on the first authentication class in effect: `TokenAuthentication` (and Knox) answer 401 with a `WWW-Authenticate` header, `SessionAuthentication` first or alone answers 403. Assert the exact code for the classes the project configures; `assertIn(status, (401, 403))` passes on the wrong one.
 
-```python
-def test_check_license_plate_returns_owner_for_manager(self):
-    request = self._manager_request("get", self._check_license_plate_url(),
-                                    {"license_plate": self.vehicle.license_plate})
-    response = VehicleViewSet.as_view({"get": "check_license_plate"})(request)
+**Permissions.** DRF checks in this order: the URL must match (else 404), the method must be routed (else 405), then authentication and each permission's `has_permission()`, all of which must pass unless combined with `|` (401 or 403), then throttles (429), then the handler; `get_object()` first filters `get_queryset()` (404 when the row is outside it) and only then runs `has_object_permission()` (403). Build a matrix of roles against actions from the promise and test each cell, with `subTest` to keep it readable. `@action(permission_classes=[...])` replaces the view's permission classes rather than adding to them, and a branch in `get_permissions()` sends every action it does not name to its default branch: test each custom action on its own, especially new ones. Object permissions run only inside `get_object()`, so list routes and actions that load rows themselves skip them; test an object permission through each write action separately (update, partial update, destroy, each detail action).
 
-    self.assertEqual(response.status_code, status.HTTP_200_OK)
-    self.assertEqual(response.data["owner"]["id"], self.owner.pk)
-```
+**Tenant scoping on every route.** `get_queryset()` is the boundary, and broken object-level authorization is the most common API security bug. For every detail route (retrieve, update, partial update, destroy, and each `@action(detail=True)`), request a row outside the caller's scope, such as another tenant's, and expect 404 with the row unchanged; a list that hides a row proves nothing about the detail routes. Look for what bypasses the boundary: an action that loads rows itself (`Model.objects.get(pk=pk)`, `get_object_or_404(Model, ...)`), a branch of `get_queryset()` that rebuilds the queryset for a query parameter, and aggregate or export endpoints running their own queries.
 
-**Access + input contract, one behavior-named test — exact statuses, never "fails":**
+**Writes.** Assert the status, the response fields the client uses, and the stored rows after reloading. Values the view passes to `serializer.save()` override the payload, and anything the serializer leaves writable is the client's to set: send an owner, tenant, or status in the payload and assert it was ignored, on create and on update. Soft deletes answer 204 and leave the row, marked. A refused or invalid request must leave the database unchanged: a view that writes before it raises keeps that write unless `ATOMIC_REQUESTS` is on, and even then only a request through the test client rolls back; a direct `view(request)` call never does.
+
+**Side effects.** For a task or email queued with `transaction.on_commit()`, patch it where the view looks it up, wrap the request in `self.captureOnCommitCallbacks(execute=True)`, assert nothing ran inside the block, and assert the call with its arguments after it. `TestCase` never commits, so without capturing, the callback never runs and a test of it passes on anything. Assert that failure paths queue nothing.
+
+**Lists.** Assert the ids in the promised order, with rows created in an order that differs from it; a paginated queryset needs an ordering ending in a unique field, or pages repeat and skip rows. For each filter, search, and ordering parameter, seed rows on both sides so the parameter changes the result, and keep another tenant's matching row in the data. Know what invalid input does: django-filter answers 400 keyed by the parameter for a bad number or choice, but silently ignores a bad boolean; `OrderingFilter` ignores fields not in `ordering_fields`; `PageNumberPagination` answers 404 for a page past the end. Assert the envelope the client reads, such as `count` and `results`.
+
+**Routes and methods.** A method the view does not route on an existing URL answers 405, including a GET to a POST-only action; a URL the router never registered (a viewset without retrieve, update, or destroy has no detail route at all) answers 404. Test the ones the promise disables.
+
+**Query count.** An endpoint's query count must not grow with its rows: seed at least two rows (ideally more) with the related data the response touches, and assert the exact count around the request. A count measured on one row, or on rows without related data, passes with an N+1 in place. `force_authenticate` skips the authentication queries a real token lookup would add.
+
+**Errors.** Assert the body keys the client reads: a validation error's field keys, `{"detail": ...}` for permission and not-found errors. An unhandled exception reaches the test as the exception itself, not as a 500 response, so a test expecting 500 is a sign the view should answer a 4xx instead.
+
+**Throttling.** Test it only when a limit is part of the promise. Throttle counters live in the cache, which `TestCase` does not reset: clear it in `setUp`.
+
+## Writing the tests
 
 ```python
-def test_list_rejects_unauthenticated_non_manager_and_invalid_pagination(self):
-    view = CustomerViewSet.as_view({"get": "list"})
+from unittest.mock import patch
 
-    request = self.build_request("get", self.list_url, self._list_params())
-    self.assertEqual(view(request).status_code, status.HTTP_401_UNAUTHORIZED)
+from django.contrib.auth import get_user_model
+from rest_framework import status
+from rest_framework.test import APITestCase
 
-    request = self.build_authenticated_request(
-        "get", self.list_url, self._list_params(),
-        user=self.employee_user, company=self.company, employee=self.employee,
-    )
-    self.assertEqual(view(request).status_code, status.HTTP_403_FORBIDDEN)
+from billing.models import Invoice, Membership, Org
 
-    request = self._manager_request("get", self.list_url, {})  # missing pagination
-    response = view(request)
-    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-    self.assertIn("pageSize", response.data)
+class InvoiceViewSetTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Org.objects.create(name="Acme")
+        cls.clerk = cls.member(cls.org, "clerk")
+        cls.accountant = cls.member(cls.org, "accountant")
+        cls.outsider = cls.member(Org.objects.create(name="Other"), "accountant")
+
+    @staticmethod
+    def member(org, role):
+        user = get_user_model().objects.create_user(username=f"{role}-{org.name}")
+        Membership.objects.create(user=user, org=org, role=role)
+        return user
+
+    def test_roles_per_action(self):
+        invoice = Invoice.objects.create(org=self.org, number="A-1")
+        cases = [  # (user, method, url, expected status) straight from the documented rules
+            (None, "get", "/invoices/", status.HTTP_401_UNAUTHORIZED),
+            (self.clerk, "get", "/invoices/", status.HTTP_200_OK),
+            (self.clerk, "post", f"/invoices/{invoice.pk}/send/", status.HTTP_403_FORBIDDEN),
+            (self.clerk, "delete", f"/invoices/{invoice.pk}/", status.HTTP_403_FORBIDDEN),
+            (self.accountant, "patch", f"/invoices/{invoice.pk}/", status.HTTP_405_METHOD_NOT_ALLOWED),
+        ]
+        for user, method, url, expected in cases:
+            with self.subTest(user=user, method=method, url=url):
+                self.client.force_authenticate(user=user)
+                self.assertEqual(getattr(self.client, method)(url).status_code, expected)
+
+    def test_other_orgs_invoice_does_not_exist_on_any_detail_route(self):
+        foreign = Invoice.objects.create(org=Org.objects.create(name="Else"), number="X-1")
+        self.client.force_authenticate(user=self.accountant)
+        for method, url in [("get", f"/invoices/{foreign.pk}/"), ("delete", f"/invoices/{foreign.pk}/"), ("post", f"/invoices/{foreign.pk}/send/")]:
+            with self.subTest(method=method, url=url):
+                self.assertEqual(getattr(self.client, method)(url).status_code, status.HTTP_404_NOT_FOUND)
+        foreign.refresh_from_db()
+        self.assertEqual(foreign.status, "draft")
+
+    def test_create_stores_the_callers_org_whatever_the_payload_says(self):
+        self.client.force_authenticate(user=self.clerk)
+        other_org = self.outsider.membership.org
+        response = self.client.post("/invoices/", {"number": "A-2", "org": other_org.pk, "status": "sent"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        invoice = Invoice.objects.get(pk=response.data["id"])
+        self.assertEqual((invoice.org, invoice.status), (self.org, "draft"))
+
+    def test_status_filter_keeps_only_matching_invoices_of_the_org(self):
+        sent = Invoice.objects.create(org=self.org, number="A-3", status="sent")
+        Invoice.objects.create(org=self.org, number="A-4")
+        Invoice.objects.create(org=self.outsider.membership.org, number="X-2", status="sent")
+        self.client.force_authenticate(user=self.clerk)
+        response = self.client.get("/invoices/", {"status": "sent"})
+        self.assertEqual([row["id"] for row in response.data["results"]], [sent.pk])
+
+    def test_list_runs_the_same_queries_for_any_number_of_rows(self):
+        for n in range(3):
+            Invoice.objects.create(org=self.org, number=f"B-{n}")
+        self.client.force_authenticate(user=self.clerk)
+        with self.assertNumQueries(2):  # count, then the page
+            self.client.get("/invoices/")
+
+    @patch("billing.emails.send_invoice_email")
+    def test_send_marks_sent_and_emails_after_commit(self, send_email):
+        invoice = Invoice.objects.create(org=self.org, number="A-5")
+        self.client.force_authenticate(user=self.accountant)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(f"/invoices/{invoice.pk}/send/")
+            send_email.assert_not_called()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        send_email.assert_called_once_with(invoice.pk)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, "sent")
 ```
 
-**Scoping — excluded row is the assertion that matters:**
+- Go through the test client (`APITestCase`'s `self.client`, with `force_authenticate(user=..., token=...)` when the view reads `request.auth`): it exercises routing, method handling, and permissions the way production does. Calling `ViewSet.as_view({"get": "list"})(request)` on an `APIRequestFactory` request is faster and fine where the project does it, but it skips routing, so 404 and 405 behavior goes untested, it needs `force_authenticate()` on the request (setting `request.user` works only with session authentication), and detail actions need `pk=` passed to the call.
+- `force_authenticate()` keeps the user object you pass; after changing that user in the database, pass the reloaded object. `force_authenticate(user=None)` switches back to anonymous.
+- The test client sends multipart by default: pass `format="json"` for nested payloads, lists, and explicit nulls.
+- Put rows most tests share in `setUpTestData`, and create the client-specific state in the test. Name each test after the rule it checks, so a failure reads as the broken promise.
 
-```python
-def test_list_returns_only_company_customers(self):
-    response = self._list_response()
+## When a test exposes a bug
 
-    pks = {row["id"] for row in response.data["results"]}
-    self.assertIn(self.customer.pk, pks)
-    self.assertNotIn(self.other_company_customer.pk, pks)
-```
+If a test written from the promise fails because the view breaks it, keep the test as written and failing, leave the view unchanged, and finish the rest. Never add a test that asserts behavior you believe is wrong, such as a role reaching an action it should not. In your report, name the failing test, the request, and what the promise says, so the user can decide whether to fix the view. This applies to bugs you find; a change the user asked for follows [references/changing-views.md](references/changing-views.md).
 
-**Write — response contract, persisted state, reject leaves DB clean:**
+## Finish
 
-```python
-def test_create_persists_vehicle(self):
-    request = self._manager_request("post", self.list_url, self._payload())
-    response = self.create_view(request)
+Run the new or changed tests with the project's test command, limited to the modules you touched. They pass, except tests you kept because they expose a bug.
 
-    self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-    vehicle = Vehicle.objects.get(pk=response.data["id"])
-    self.assertEqual(vehicle.company, self.company)
+Report what you tested, the bugs found with their failing tests, and anything the tests cannot prove, such as behavior that depends on production settings the tests replace.
 
-def test_create_rejects_missing_vin_and_persists_nothing(self):
-    request = self._manager_request("post", self.list_url, self._payload(vin=""))
-    response = self.create_view(request)
-
-    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-    self.assertIn("vin", response.data)
-    self.assertEqual(Vehicle.objects.count(), self.initial_vehicle_count)
-```
-
-**APIClient when routing/headers/downloads are contract — same token shape view reads:**
-
-```python
-self.client = APIClient()
-self.client.force_authenticate(
-    user=self.manager_user,
-    token=SimpleNamespace(company=self.company, employee=self.manager),
-)
-response = self.client.get(self.list_url, data=self._completed_list_params())
-```
-
-**Query budget — seed enough rows that N+1 breaks count:**
-
-```python
-with self.assertNumQueries(12):
-    response = CustomerViewSet.as_view({"get": "mutual_settlement"})(request)
-```
-
-**Repetition across actions = one helper, never copy-paste:**
-
-```python
-def test_check_license_plate_rejects_non_manager_and_anonymous_requests(self):
-    self._assert_action_rejects_non_manager_and_anonymous(
-        method="get",
-        path=self._check_license_plate_url(),
-        action="check_license_plate",
-        data={"license_plate": self.vehicle.license_plate},
-    )
-```
-
-## Anti-patterns
-
-- Only status code on writes — contract includes what persisted (or didn't).
-- Full response blob when few fields prove behavior — brittle, unreadable.
-- Re-testing serializer field validation serializer suite covers; assert view surfaces error key, not every message variant.
-- `403` asserted where configured auth classes return `401` for anonymous — know which before writing.
-- Splitting one contract into many single-assert micro-tests — batch related rejections into one behavior-named test (see access pattern above); more tests ≠ more coverage.
-- Multipart uploads: `APIRequestFactory`/`APIClient` need `format="multipart"`; dicts inside multipart data stringify to invalid JSON — flatten payload or post JSON separately.
-- Setting `request.user` on `APIRequestFactory` request instead of `force_authenticate` — silently unauthenticated.
-- Reusing one user instance across mutating tests without `refresh_from_db()` — `force_authenticate` binds in-memory object.
-- Per-test fixtures every test needs — `setUpTestData` (once per class, transaction-isolated per test).
-- Throttling, storage internals, middleware tests on every view "for completeness".
-
-
-## Version notes (apply per project's pins — check pyproject/requirements)
-
-- DRF 3.18+: list serializer (`many=True`) validation errors **dict format** — assert new shape on bulk endpoints, not old list-of-dicts.
-- Token auth (Knox, DRF TokenAuthentication): anonymous = **`401`** (with `WWW-Authenticate`), wrong-role authenticated = **`403`**. Session-only auth: anonymous = `403`. Assert per configured classes.
-- Django 6.0+: `setUpTestData` attributes deep-copied per test, must be deepcopyable — no clients/connections on class; create `APIClient` in `setUp`.
-- Django 6 `DiscoverRunner` supports forkserver — `--parallel auto` cheap; keep tests isolation-safe.
-- DRF 3.17+ enforces `DATA_UPLOAD_MAX_MEMORY_SIZE` for `request.data` parsing — matters only for upload-limit contracts.
-
-## Project reference
-
-Project conventions (test base, fixtures, auth classes + statuses, stack pins, paths, run command) live under `references/` — read your project's file before writing tests. Ships [references/holuto.md](references/holuto.md) for Holuto `api`. No matching file: locate shared test base, auth classes, runner conventions in target repo first.
-
-## Quick verify (gate before finishing — applies even when user asked for one behavior)
-
-Success path for allowed caller. Unauth/forbidden with **exact** status when access matters. Scoping: in-scope visible, out-of-scope excluded + correct detail failure. Pagination + date input where required; filter/search/order when exposed. Create/update/partial/delete/custom actions: DB side effects from persisted state + unchanged DB on reject. Shape includes custom top-level keys. Validation + permission errors by key/message. Disabled actions = expected `403`/`405`. Shared inherited contracts (e.g. bulk-by-pks, select-all, confirm/download) covered where exposed. Helpers OK; tests small, explicit, behavior-named.
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/testing/
-- https://www.django-rest-framework.org/api-guide/viewsets/
-- https://www.django-rest-framework.org/community/release-notes/
-- https://www.vintasoftware.com/blog/counting-queries-basic-performance-testing-in-django
-- https://docs.djangoproject.com/en/stable/topics/testing/tools/
+For many views at once with subagents, give each subagent a whole module, since sibling views share bases and fixtures, and have them write tests only; run the new test modules one at a time at the end, because parallel `manage.py test` runs can collide on a shared test database.

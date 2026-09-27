@@ -1,0 +1,7 @@
+{
+  "name": "rooms-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node server.mjs", "test:e2e": "playwright test" },
+  "devDependencies": { "@playwright/test": "1.63.0", "typescript": "5.9.3" }
+}
