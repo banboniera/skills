@@ -44,6 +44,7 @@ A test that fails only sometimes has a cause worth finding rather than a retry. 
 | An assertion sometimes sees the old state | A check that runs once before an async update (`getBy...` right after an unawaited action) | Await the interaction; `findBy...` or `waitFor` for what appears later |
 | A test hangs under fake timers | user-event or a promise waiting on a timer nobody advances | `vi.useFakeTimers({ shouldAdvanceTime: true })` with `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`; `advanceTimersByTimeAsync` for promise chains |
 | An "act" warning or an unhandled rejection after the test ended | Work the test started but did not await | Await it, or assert its end state before the test finishes |
+| Times out only in the full suite or in CI | The test does too much work for the default 5 s once workers compete for CPU, usually `user.type` of long values or many `getByRole` name queries | Paste values that need no per-key behavior and scope queries with `within` (SKILL.md, "Speed"); raise the timeout only for work that cannot shrink |
 
 Prove the fix by running the test repeatedly, and report the cause, not just the change.
 
