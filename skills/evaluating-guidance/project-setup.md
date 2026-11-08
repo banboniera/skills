@@ -44,8 +44,11 @@ Dependencies are fetched in the image or seed warm-up; trial pods have no networ
    and shows the sandbox reaches neither the internet nor host services. If the
    free provider is rate-limited, `--budget USD` (a trial costs about $0.15) runs
    it on the production model.
-3. `guidance-evals admit`: only admitted cases enter experiments (`--jobs 1`
-   admits serially when container storage is slow).
+3. `guidance-evals admit`: only admitted cases enter experiments. An admission
+   holds for one working-tree snapshot: any change to the project tree, including
+   another session's edits, requires re-admission, and `run` lists every case that
+   needs it. Each admission sandbox uses the project's CPUs; when cases build
+   heavily, use `--jobs 1` and keep concurrent admissions within the host's cores.
 
 A failed trial keeps `infra-error.txt` in its artifacts; the run summary groups
 failures by cause.

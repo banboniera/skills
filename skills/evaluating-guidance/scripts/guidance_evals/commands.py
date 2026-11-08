@@ -145,6 +145,8 @@ def run_experiment(runner: RealRunner, path: Path, jobs: int, *, budget: float |
         if not specs:
             raise ValueError("no cases match experiment selectors/split")
         selected = {s.case_key for s in specs}
+        unadmitted: list[str] = []
+        readmit: list[str] = []
         for case in cases:
             if case.key in selected:
                 admission_key = admission_id(case.case_hash, directory_hash(case.path / "verifier"),
@@ -153,9 +155,14 @@ def run_experiment(runner: RealRunner, path: Path, jobs: int, *, budget: float |
                 record = runner.store.root / "admissions" / admission_key / "admission.json"
                 admission: dict[str, Any] = json.loads(record.read_text()) if record.exists() else {}
                 if admission.get("admitted") is not True:
-                    raise ValueError(f"{case.key}: run admit before experiments")
-                if admission.get("snapshot") != runner.seed.snapshot_hash or admission.get("image") != runner.seed.image:
-                    raise ValueError(f"{case.key}: re-admit for this snapshot/image")
+                    unadmitted.append(case.key)
+                elif admission.get("snapshot") != runner.seed.snapshot_hash or admission.get("image") != runner.seed.image:
+                    readmit.append(case.key)
+        # Name every blocked case at once so one admission call can fix them all.
+        if unadmitted or readmit:
+            problems = ([f"run admit before experiments: {' '.join(unadmitted)}"] if unadmitted else []) + (
+                [f"re-admit for this snapshot/image: {' '.join(readmit)}"] if readmit else [])
+            raise ValueError("; ".join(problems))
         frozen = FrozenPlan(experiment=experiment, trials=specs, protected=runner.project.protected, blocks=expanded.blocks,
             smoke_only=any(is_free_model(model) for model in runner.roles.values()),
             agent_roles=runner.roles)
