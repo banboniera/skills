@@ -103,6 +103,25 @@ def _command(argv: list[str], *, check: bool = True, timeout: float = 3600,
     return result
 
 
+def wait_for_service(container: str, ready: str, deadline_seconds: float = 120) -> None:
+    """Poll the service's readiness command until it succeeds, the container exits or the deadline passes."""
+    deadline = time.monotonic() + deadline_seconds
+    stop = threading.Event()
+    while True:
+        try:
+            result = _command(["podman", "exec", container, "/bin/sh", "-c", ready], check=False,
+                              timeout=max(1.0, min(30.0, deadline - time.monotonic())))
+            if result.returncode == 0:
+                return
+        except subprocess.TimeoutExpired:  # A probe stalled by host load means "not ready yet"; the deadline decides failure.
+            pass
+        running = _command(["podman", "inspect", "--format", "{{.State.Running}}", container]).stdout.strip()
+        if running != b"true" or time.monotonic() >= deadline:
+            raise SandboxError("private service failed readiness")
+        # The readiness command is the only signal a service exposes, so it is polled at a fixed interval.
+        stop.wait(SERVICE_READY_POLL_SECONDS)
+
+
 def _json(path: Path, value: object) -> None:
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(value, indent=2) + "\n")
@@ -825,16 +844,7 @@ class TrialEnvironment:
             relative_path(service.init)
             argv += self._mount(self.seed.root / "repo" / service.init, "/docker-entrypoint-initdb.d", True)
         _command([*argv, service.image, *service.args])
-        deadline = time.monotonic() + 120
-        stop = threading.Event()
-        while True:
-            result = _command(["podman", "exec", name, "/bin/sh", "-c", service.ready], check=False, timeout=10)
-            if result.returncode == 0:
-                return
-            running = _command(["podman", "inspect", "--format", "{{.State.Running}}", name]).stdout.strip()
-            if running != b"true" or time.monotonic() >= deadline:
-                raise SandboxError("private service failed readiness")
-            stop.wait(SERVICE_READY_POLL_SECONDS)
+        wait_for_service(name, service.ready)
 
     def _relays(self, port: int) -> Path:
         started = time.monotonic()

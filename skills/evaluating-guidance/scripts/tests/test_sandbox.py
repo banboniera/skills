@@ -291,3 +291,24 @@ def test_untracked_files_visible_to_the_agent_are_reported(tmp_path: Path) -> No
     project = Project(slug="p", image=Image(containerfile="Containerfile"), hide=[".omp/evals", "secret.txt"],
                       agent=Agent(roles={"default": "local/test"}))
     assert untracked_in_seed(tmp_path, project) == ["session-excerpt.txt"]
+
+
+def test_service_readiness_survives_a_stalled_probe_but_not_the_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+    from guidance_evals.sandbox import wait_for_service
+    probes: list[str] = []
+
+    def command(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if argv[1] == "inspect":
+            return subprocess.CompletedProcess(argv, 0, stdout=b"true\n", stderr=b"")
+        probes.append(argv[-1])
+        if len(probes) == 1 or argv[-1] == "never":
+            raise subprocess.TimeoutExpired(argv, float(str(kwargs["timeout"])))
+        return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr("guidance_evals.sandbox._command", command)
+    monkeypatch.setattr("guidance_evals.sandbox.SERVICE_READY_POLL_SECONDS", 0)
+    wait_for_service("db", "pg_isready")
+    assert probes == ["pg_isready", "pg_isready"]
+    with pytest.raises(SandboxError, match="failed readiness"):
+        wait_for_service("db", "never", deadline_seconds=0.05)
