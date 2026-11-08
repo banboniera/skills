@@ -585,7 +585,8 @@ class Sandbox:
             for index, command in enumerate(self.project.seed.warm):
                 path = root / f"warm-{index}.log"
                 with path.open("wb") as log:
-                    result = trial.run_command(["bash", "-lc", command], network=True, warm=True, stdout=log, check=False)
+                    # Not a login shell: /etc/profile would replace the engine's PATH.
+                    result = trial.run_command(["bash", "-c", command], network=True, warm=True, stdout=log, check=False)
                     if result.stderr:
                         log.write(result.stderr)
                 if result.returncode:

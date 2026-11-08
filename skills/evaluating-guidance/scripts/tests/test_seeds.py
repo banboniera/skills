@@ -84,7 +84,8 @@ def seeds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SeedHarness:
     def run_warm(trial: TrialEnvironment, command: list[str], *, network: bool = False,
                  warm: bool = False, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
         assert network is True and warm is True
-        assert command[:2] == ["bash", "-lc"]
+        # A login shell would let /etc/profile replace the engine PATH.
+        assert command[:2] == ["bash", "-c"]
         assert command[2] in trial.project.seed.warm
         source = (trial.repo / "source.txt").read_text()
         guidance = (trial.repo / "AGENTS.md").read_text()
