@@ -501,7 +501,8 @@ class Sandbox:
         caches = [p for p in self.project.seed.cache_dirs if not p.startswith("/")]
         with tempfile.TemporaryDirectory(prefix="guidance-evals-image-") as temporary:
             build_context = Path(temporary) / "context"
-            _clean_copy(context, build_context, [*self.project.hide, "cases", "triggers", "project.toml"], caches)
+            # Engine inputs that never reach the image: changing them must not invalidate admissions.
+            _clean_copy(context, build_context, [*self.project.hide, "cases", "triggers", "experiments", "project.toml"], caches)
             image_hash = hashlib.sha256(
                 containerfile.read_bytes() + _tree_hash(build_context).encode() + base_image.encode()
             ).hexdigest()

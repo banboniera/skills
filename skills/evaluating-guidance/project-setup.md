@@ -1,7 +1,9 @@
 # Setting up a project
 
 The engine is shared; a project supplies `.omp/evals/project.toml` and a
-`Containerfile` beside it.
+`Containerfile` beside it. Keep cases in `.omp/evals/cases/` and experiment files
+in `.omp/evals/experiments/`; neither is part of the image build context, so
+editing them does not rebuild the image or invalidate admissions.
 
 ## Containerfile
 

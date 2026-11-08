@@ -198,8 +198,9 @@ def test_status_image_hashes_clean_context_and_cleans_temporary_files(
     root, project, store, images = environment
     context = root / ".omp/evals/image"
     (context / ".env.secret").write_text("private")
-    (context / "cases").mkdir()
-    (context / "cases/hidden").write_text("rubric")
+    for engine_dir in ("cases", "triggers", "experiments"):
+        (context / engine_dir).mkdir()
+        (context / engine_dir / "input").write_text("engine input, not image input")
     sandbox = Sandbox(root, project, store.root, "status")
     assert sandbox.status_image() == images.digest
     tree = hashlib.sha256(b"tool\x00420\x00tool bytes\n\x00").hexdigest()
