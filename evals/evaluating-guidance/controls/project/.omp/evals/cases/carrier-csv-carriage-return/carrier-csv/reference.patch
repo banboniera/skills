@@ -1,0 +1,15 @@
+diff --git a/parcelbill/carrier_csv.py b/parcelbill/carrier_csv.py
+--- a/parcelbill/carrier_csv.py
++++ b/parcelbill/carrier_csv.py
+@@ -5,3 +5,11 @@
+ 
+ def read_carrier_csv(text):
+     return list(csv.DictReader(io.StringIO(text, newline="")))
++
++
++def carrier_csv(rows):
++    output = io.StringIO(newline="")
++    writer = csv.writer(output, lineterminator="\n", quoting=csv.QUOTE_ALL)
++    writer.writerow(["name", "address"])
++    writer.writerows((row["name"], row["address"]) for row in rows)
++    return output.getvalue()

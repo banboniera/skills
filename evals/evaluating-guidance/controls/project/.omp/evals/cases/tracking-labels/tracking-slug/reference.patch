@@ -1,0 +1,11 @@
+diff --git a/parcelbill/tracking.py b/parcelbill/tracking.py
+--- a/parcelbill/tracking.py
++++ b/parcelbill/tracking.py
+@@ -4,3 +4,7 @@
+ 
+ def carrier_name(code: str) -> str:
+     return CARRIERS.get(code, code)
++
++
++def tracking_slug(label: str) -> str:
++    return "-".join(label.strip().lower().split())

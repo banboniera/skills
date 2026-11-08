@@ -1,0 +1,11 @@
+diff --git a/parcelbill/customer_keys.py b/parcelbill/customer_keys.py
+--- a/parcelbill/customer_keys.py
++++ b/parcelbill/customer_keys.py
+@@ -4,3 +4,7 @@
+ 
+ def display_label(label: str) -> str:
+     return label.strip()
++
++
++def customer_key(label: str) -> str:
++    return unicodedata.normalize("NFKC", unicodedata.normalize("NFKC", label.strip()).casefold())

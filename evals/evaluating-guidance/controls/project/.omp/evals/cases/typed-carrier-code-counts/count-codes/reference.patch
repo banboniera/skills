@@ -1,0 +1,17 @@
+diff --git a/parcelbill/code_counts.py b/parcelbill/code_counts.py
+--- a/parcelbill/code_counts.py
++++ b/parcelbill/code_counts.py
+@@ -7,3 +7,13 @@
+     if isinstance(value, int):
+         return "integer"
+     return "string"
++
++
++def count_codes(codes):
++    counts = {}
++    for value in codes:
++        key = (scalar_type(value), value)
++        if key not in counts:
++            counts[key] = {"type": scalar_type(value), "value": value, "count": 0}
++        counts[key]["count"] += 1
++    return list(counts.values())

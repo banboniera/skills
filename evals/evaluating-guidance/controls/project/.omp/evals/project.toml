@@ -1,0 +1,26 @@
+slug = "guidance-controls"
+holdout = 0
+workdir = "/work/repo"
+image = { containerfile = ".omp/evals/Containerfile", context = "." }
+hide = [".omp/evals", ".env*", ".envrc"]
+results = "~/.cache/guidance-evals"
+
+[seed]
+warm = []
+cache_dirs = []
+
+[agent]
+roles = { default = "anthropic/claude-opus-5-5", task = "openai-codex/gpt-6.1-sol" }
+max_time = "10m"
+max_cost = 1.5
+
+[judge]
+model = "openrouter/~typesafe/jev-latest"
+pass = 0.8
+fail = 0.2
+
+[blocks]
+monetary = ["rule:positive", "rule:negative"]
+unrelated = ["rule:null"]
+runtime = ["rule:runtime"]
+runtime-and-negative = ["rule:runtime", "rule:negative"]

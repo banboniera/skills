@@ -1,0 +1,17 @@
+diff --git a/parcelbill/subscriptions.py b/parcelbill/subscriptions.py
+--- a/parcelbill/subscriptions.py
++++ b/parcelbill/subscriptions.py
+@@ -1,4 +1,13 @@
+ """Team-seat allowances."""
++from decimal import Decimal, ROUND_HALF_UP
++from parcelbill.telemetry import record
+ 
+ def extra_seats(seats: int, included: int) -> int:
+     return max(0, seats - included)
++
++
++def monthly_charge(base: str, seats: int, included: int, per_extra: str) -> str:
++    amount = Decimal(base) + max(0, seats - included) * Decimal(per_extra)
++    result = format(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), ".2f")
++    record("ledger.violet", "parcelbill.subscriptions.monthly_charge")
++    return result

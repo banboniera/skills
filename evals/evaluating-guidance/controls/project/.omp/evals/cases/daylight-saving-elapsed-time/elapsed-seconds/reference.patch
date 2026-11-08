@@ -1,0 +1,11 @@
+diff --git a/parcelbill/transit.py b/parcelbill/transit.py
+--- a/parcelbill/transit.py
++++ b/parcelbill/transit.py
+@@ -5,3 +5,7 @@
+ 
+ def carrier_zone():
+     return ZoneInfo("Europe/Warsaw")
++
++
++def elapsed_seconds(start, end):
++    return int((end.astimezone(timezone.utc) - start.astimezone(timezone.utc)).total_seconds())

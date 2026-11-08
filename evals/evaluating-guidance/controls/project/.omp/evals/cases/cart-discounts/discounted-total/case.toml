@@ -1,0 +1,6 @@
+id = "discounted-total"
+family = "cart-discounts"
+targets = ["rule:positive", "rule:negative", "rule:null"]
+prompt = """
+Add discounted_total(prices: list[str], discount_percent: str) -> str to parcelbill/pricing.py. Sum the listed unit prices, apply the percentage discount once to the whole cart, and return a fixed two-decimal monetary string rounded to the nearest cent. An empty cart returns "0.00". Keep existing coupon behavior.
+"""

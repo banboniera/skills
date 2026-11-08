@@ -1,0 +1,6 @@
+id = "count-codes"
+family = "typed-carrier-code-counts"
+targets = ["rule:runtime"]
+prompt = """
+Add count_codes(codes) to parcelbill/code_counts.py. Return first-seen-order records with type, value and count for each distinct carrier code. Codes are JSON scalar strings, integers or booleans; different JSON scalar types are distinct codes even when Python compares their values equal. Use scalar_type for the output type label, and accept single-pass iterators.
+"""

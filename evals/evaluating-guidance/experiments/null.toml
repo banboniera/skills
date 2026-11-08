@@ -1,0 +1,4 @@
+name = "ctl-null"
+kind = "compare"
+arms = ["current", "minus:rule:null"]
+relevant_targets = ["rule:null"]

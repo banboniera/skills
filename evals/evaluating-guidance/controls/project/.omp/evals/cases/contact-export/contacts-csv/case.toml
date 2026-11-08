@@ -1,0 +1,6 @@
+id = "contacts-csv"
+family = "contact-export"
+targets = ["rule:null"]
+prompt = """
+Add contacts_csv(contacts: list[dict[str, str]]) -> str to parcelbill/contacts.py. Produce CSV with the header name,email, one row per contact in input order, and LF line endings including a final LF. Fields may contain commas, quotes, and newlines, so use proper CSV quoting. Return just the header for empty input. Preserve display_name.
+"""

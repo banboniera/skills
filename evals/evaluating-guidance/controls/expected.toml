@@ -1,0 +1,44 @@
+# Expected instrument outcomes, not evidence from model trials.
+# Monetary comparisons use six monetary families; runtime uses six carrier families.
+# The null rule is tagged as an evaluated non-applicable target, not a task requirement.
+# The two nonmonetary cases measure unaffected work and are selected for null only.
+
+[[expectation]]
+target = "rule:positive"
+verdicts = ["keep", "benefit"]
+with_arm = "minus:rule:negative"
+without_arm = "minus:monetary"
+case_target = "rule:positive"
+reason = "Remove harmful rounding guidance from both arms; only the positive arm knows the arbitrary monetary event convention."
+
+[[expectation]]
+target = "rule:negative"
+verdicts = ["harm"]
+with_arm = "current"
+without_arm = "minus:rule:negative"
+case_target = "rule:negative"
+reason = "Retain positive guidance in both arms so its critical audit check cannot mask the harmful half-even instruction."
+
+[[expectation]]
+target = "monetary"
+verdicts = ["split"]
+with_arm = "current"
+without_arm = "minus:monetary"
+case_target = "rule:positive"
+reason = "Full success cancels: current fails rounding, ablated fails audit; tagged member checks separate in opposite directions."
+
+[[expectation]]
+target = "rule:null"
+verdicts = ["equivalent", "inconclusive"]
+with_arm = "current"
+without_arm = "minus:rule:null"
+case_target = "rule:null"
+reason = "The documentation image rule never applies to these Python tasks; no keep, benefit, harm or split verdict is acceptable."
+
+[[expectation]]
+target = "rule:runtime"
+verdicts = ["equivalent", "inconclusive"]
+with_arm = "minus:rule:negative"
+without_arm = "minus:runtime-and-negative"
+case_target = "rule:runtime"
+reason = "Model-already-knows control. Designed as positive, but with anthropic/claude-opus-5-5 the without arm solved 33/36 trials (k=6), so the rule adds no measurable effect; the instrument must not report keep/benefit. Re-check this expectation when the model changes."

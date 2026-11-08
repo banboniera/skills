@@ -1,0 +1,4 @@
+name = "ctl-negative-v3"
+kind = "compare"
+arms = ["current", "minus:rule:negative"]
+relevant_targets = ["rule:negative"]

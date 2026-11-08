@@ -1,0 +1,11 @@
+diff --git a/parcelbill/status_groups.py b/parcelbill/status_groups.py
+--- a/parcelbill/status_groups.py
++++ b/parcelbill/status_groups.py
+@@ -4,3 +4,7 @@
+ 
+ def status_runs(events):
+     return groupby(events, key=lambda event: event["status"])
++
++
++def collect_status_groups(events):
++    return {status: [event["code"] for event in group] for status, group in status_runs(events)}

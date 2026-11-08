@@ -1,0 +1,22 @@
+FROM docker.io/library/python:3.14-slim-trixie
+ENV DEBIAN_FRONTEND=noninteractive BUN_INSTALL=/opt/bun PATH=/opt/bun/bin:/usr/local/bin:/usr/bin:/bin
+COPY agent-install/ /opt/bun/install/global/
+RUN printf 'path-exclude=/usr/share/doc/*\npath-include=/usr/share/doc/*/copyright\npath-exclude=/usr/share/man/*\npath-exclude=/usr/share/info/*\npath-exclude=/usr/share/locale/*\n' > /etc/dpkg/dpkg.cfg.d/01-nodoc \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl git socat media-types \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /opt/bun/bin \
+    && curl -fsSL https://registry.npmjs.org/@oven/bun-linux-x64/-/bun-linux-x64-1.4.4.tgz | tar xzf - -C /tmp \
+    && cp /tmp/package/bin/bun /opt/bun/bin/bun \
+    && ln -s bun /opt/bun/bin/bunx \
+    && rm -rf /tmp/package \
+    && bun install --cwd /opt/bun/install/global --frozen-lockfile \
+    && ln -s ../install/global/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js /opt/bun/bin/omp \
+    && rm -rf /opt/bun/install/cache \
+    && chmod -R a+rX /opt/bun \
+    && /usr/sbin/useradd --uid 1000 --create-home eval \
+    && mkdir -p /work/repo /cache/cargo \
+    && chown eval:eval /work/repo /cache/cargo
+ENV HOME=/home/eval
+WORKDIR /work/repo
+CMD ["bash"]

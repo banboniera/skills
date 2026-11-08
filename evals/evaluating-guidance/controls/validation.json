@@ -1,0 +1,1858 @@
+{
+  "cases": [
+    {
+      "case": "borrowed-carrier-rows/snapshot-scans",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.scans' has no attribute 'snapshot_scans'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.scans' has no attribute 'snapshot_scans'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.scans' has no attribute 'snapshot_scans'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.scans' has no attribute 'snapshot_scans'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "plausible-wrong": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: ",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "carrier-csv-carriage-return/carrier-csv",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.carrier_csv' has no attribute 'carrier_csv'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.carrier_csv' has no attribute 'carrier_csv'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.carrier_csv' has no attribute 'carrier_csv'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.carrier_csv' has no attribute 'carrier_csv'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "plausible-wrong": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: ",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "cart-discounts/discounted-total",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.pricing' has no attribute 'discounted_total'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.pricing' has no attribute 'discounted_total'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.pricing' has no attribute 'discounted_total'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.pricing' has no attribute 'discounted_total'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.pricing' has no attribute 'discounted_total'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.pricing' has no attribute 'discounted_total'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "missing-event": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: successful call must emit exactly its monetary API event",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        "banker-rounding": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: expected '0.51', got '0.50'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "contact-export/contacts-csv",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.contacts' has no attribute 'contacts_csv'",
+              "targets": []
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.contacts' has no attribute 'contacts_csv'",
+              "targets": []
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "daylight-saving-elapsed-time/elapsed-seconds",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.transit' has no attribute 'elapsed_seconds'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.transit' has no attribute 'elapsed_seconds'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.transit' has no attribute 'elapsed_seconds'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.transit' has no attribute 'elapsed_seconds'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "plausible-wrong": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: ",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "included-seat-billing/monthly-charge",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.subscriptions' has no attribute 'monthly_charge'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.subscriptions' has no attribute 'monthly_charge'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.subscriptions' has no attribute 'monthly_charge'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.subscriptions' has no attribute 'monthly_charge'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.subscriptions' has no attribute 'monthly_charge'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.subscriptions' has no attribute 'monthly_charge'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "missing-event": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: successful call must emit exactly its monetary API event",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        "banker-rounding": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: expected '1.01', got '1.00'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "invoice-line-aggregation/invoice-total",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.invoices' has no attribute 'invoice_total'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.invoices' has no attribute 'invoice_total'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.invoices' has no attribute 'invoice_total'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.invoices' has no attribute 'invoice_total'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.invoices' has no attribute 'invoice_total'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.invoices' has no attribute 'invoice_total'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "missing-event": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: successful call must emit exactly its monetary API event",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        "banker-rounding": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: expected '1.01', got '1.00'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "single-pass-status-groups/collect-status-groups",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.status_groups' has no attribute 'collect_status_groups'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.status_groups' has no attribute 'collect_status_groups'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.status_groups' has no attribute 'collect_status_groups'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.status_groups' has no attribute 'collect_status_groups'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "plausible-wrong": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: ",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "tax-gross-up/taxed-total",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tax' has no attribute 'taxed_total'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tax' has no attribute 'taxed_total'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tax' has no attribute 'taxed_total'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tax' has no attribute 'taxed_total'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tax' has no attribute 'taxed_total'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tax' has no attribute 'taxed_total'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "missing-event": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: successful call must emit exactly its monetary API event",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        "banker-rounding": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: expected '1.01', got '1.00'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "tracking-labels/tracking-slug",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tracking' has no attribute 'tracking_slug'",
+              "targets": []
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.tracking' has no attribute 'tracking_slug'",
+              "targets": []
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "typed-carrier-code-counts/count-codes",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.code_counts' has no attribute 'count_codes'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.code_counts' has no attribute 'count_codes'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.code_counts' has no attribute 'count_codes'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.code_counts' has no attribute 'count_codes'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "plausible-wrong": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: ",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "unicode-customer-keys/customer-key",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.customer_keys' has no attribute 'customer_key'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.customer_keys' has no attribute 'customer_key'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.customer_keys' has no attribute 'customer_key'",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.customer_keys' has no attribute 'customer_key'",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "plausible-wrong": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "runtime behavior matched",
+              "targets": []
+            },
+            {
+              "id": "runtime-contract",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: ",
+              "targets": [
+                "rule:runtime"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "unused-period-refunds/prorated-refund",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.refunds' has no attribute 'prorated_refund'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.refunds' has no attribute 'prorated_refund'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.refunds' has no attribute 'prorated_refund'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.refunds' has no attribute 'prorated_refund'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.refunds' has no attribute 'prorated_refund'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.refunds' has no attribute 'prorated_refund'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "missing-event": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: successful call must emit exactly its monetary API event",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        "banker-rounding": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: expected '0.51', got '0.50'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "weight-rate-shipping/shipping-quote",
+      "base_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.shipping' has no attribute 'shipping_quote'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.shipping' has no attribute 'shipping_quote'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.shipping' has no attribute 'shipping_quote'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.shipping' has no attribute 'shipping_quote'",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.shipping' has no attribute 'shipping_quote'",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AttributeError: module 'parcelbill.shipping' has no attribute 'shipping_quote'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "reference_runs": [
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      ],
+      "counterexamples": {
+        "missing-event": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: successful call must emit exactly its monetary API event",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        },
+        "banker-rounding": {
+          "checks": [
+            {
+              "id": "completion",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": []
+            },
+            {
+              "id": "monetary-audit",
+              "passed": true,
+              "critical": true,
+              "evidence": "behavior matched",
+              "targets": [
+                "rule:positive"
+              ]
+            },
+            {
+              "id": "cent-ties",
+              "passed": false,
+              "critical": true,
+              "evidence": "AssertionError: expected '1.01', got '1.00'",
+              "targets": [
+                "rule:negative"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

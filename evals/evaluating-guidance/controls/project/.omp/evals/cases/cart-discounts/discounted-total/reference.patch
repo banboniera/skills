@@ -1,0 +1,17 @@
+diff --git a/parcelbill/pricing.py b/parcelbill/pricing.py
+--- a/parcelbill/pricing.py
++++ b/parcelbill/pricing.py
+@@ -1,4 +1,13 @@
+ """Cart pricing helpers."""
++from decimal import Decimal, ROUND_HALF_UP
++from parcelbill.telemetry import record
+ 
+ def coupon_allowed(code: str) -> bool:
+     return code.startswith("SAVE-") and len(code) > 5
++
++
++def discounted_total(prices: list[str], discount_percent: str) -> str:
++    amount = sum((Decimal(price) for price in prices), Decimal(0)) * (Decimal(1) - Decimal(discount_percent) / 100)
++    result = format(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), ".2f")
++    record("ledger.violet", "parcelbill.pricing.discounted_total")
++    return result

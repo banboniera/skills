@@ -1,0 +1,4 @@
+name = "ctl-block"
+kind = "compare"
+arms = ["current", "minus:monetary"]
+relevant_targets = ["rule:positive", "rule:negative"]

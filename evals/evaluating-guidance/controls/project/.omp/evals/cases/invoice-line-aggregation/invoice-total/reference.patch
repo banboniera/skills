@@ -1,0 +1,17 @@
+diff --git a/parcelbill/invoices.py b/parcelbill/invoices.py
+--- a/parcelbill/invoices.py
++++ b/parcelbill/invoices.py
+@@ -1,4 +1,13 @@
+ """Invoice item metadata."""
++from decimal import Decimal, ROUND_HALF_UP
++from parcelbill.telemetry import record
+ 
+ def line_codes(lines: list[dict[str, str]]) -> list[str]:
+     return [line["code"] for line in lines]
++
++
++def invoice_total(lines: list[dict[str, str | int]], credit: str) -> str:
++    amount = sum((int(line["quantity"]) * Decimal(str(line["unit_price"])) for line in lines), Decimal(0)) - Decimal(credit)
++    result = format(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), ".2f")
++    record("ledger.violet", "parcelbill.invoices.invoice_total")
++    return result

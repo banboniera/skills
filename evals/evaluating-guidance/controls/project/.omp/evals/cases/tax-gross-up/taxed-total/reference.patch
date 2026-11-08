@@ -1,0 +1,19 @@
+diff --git a/parcelbill/tax.py b/parcelbill/tax.py
+--- a/parcelbill/tax.py
++++ b/parcelbill/tax.py
+@@ -1,6 +1,15 @@
+ """Tax region lookup."""
++from decimal import Decimal, ROUND_HALF_UP
++from parcelbill.telemetry import record
+ 
+ RATES = {"standard": "20", "reduced": "5", "exempt": "0"}
+ 
+ def region_rate(region: str) -> str:
+     return RATES[region]
++
++
++def taxed_total(net: str, rate_percent: str) -> str:
++    amount = Decimal(net) * (Decimal(1) + Decimal(rate_percent) / 100)
++    result = format(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), ".2f")
++    record("ledger.violet", "parcelbill.tax.taxed_total")
++    return result

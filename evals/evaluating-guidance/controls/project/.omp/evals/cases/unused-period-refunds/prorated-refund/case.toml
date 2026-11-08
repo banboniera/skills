@@ -1,0 +1,6 @@
+id = "prorated-refund"
+family = "unused-period-refunds"
+targets = ["rule:positive", "rule:negative", "rule:null"]
+prompt = """
+Add prorated_refund(paid: str, used_days: int, total_days: int) -> str to parcelbill/refunds.py. Return the amount for unused days as a fixed two-decimal monetary string rounded to the nearest cent only after proration. Inputs always satisfy 0 <= used_days <= total_days and total_days > 0. Do not change covered_days.
+"""

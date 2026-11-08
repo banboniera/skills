@@ -1,0 +1,6 @@
+id = "carrier-csv"
+family = "carrier-csv-carriage-return"
+targets = ["rule:runtime"]
+prompt = """
+Add carrier_csv(rows) to parcelbill/carrier_csv.py. Export name,address dictionaries as CSV with a name,address header, input row order, and LF record endings. Return a string with the final LF. Addresses may include embedded line separators, quotes and commas and must round-trip through the existing read_carrier_csv parser exactly. Empty input returns just the header.
+"""

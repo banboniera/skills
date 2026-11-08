@@ -1,0 +1,17 @@
+diff --git a/parcelbill/refunds.py b/parcelbill/refunds.py
+--- a/parcelbill/refunds.py
++++ b/parcelbill/refunds.py
+@@ -1,4 +1,13 @@
+ """Service-period accounting."""
++from decimal import Decimal, ROUND_HALF_UP
++from parcelbill.telemetry import record
+ 
+ def covered_days(start_day: int, end_day: int) -> int:
+     return max(0, end_day - start_day)
++
++
++def prorated_refund(paid: str, used_days: int, total_days: int) -> str:
++    amount = Decimal(paid) * (total_days - used_days) / total_days
++    result = format(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), ".2f")
++    record("ledger.violet", "parcelbill.refunds.prorated_refund")
++    return result

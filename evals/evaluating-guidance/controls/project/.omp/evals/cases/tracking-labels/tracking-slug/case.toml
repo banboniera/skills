@@ -1,0 +1,6 @@
+id = "tracking-slug"
+family = "tracking-labels"
+targets = ["rule:null"]
+prompt = """
+Add tracking_slug(label: str) -> str to parcelbill/tracking.py. Strip outer whitespace, lowercase the label, replace each run of internal whitespace with one hyphen, and preserve non-whitespace punctuation. Return an empty string for whitespace-only input. Keep carrier_name unchanged.
+"""

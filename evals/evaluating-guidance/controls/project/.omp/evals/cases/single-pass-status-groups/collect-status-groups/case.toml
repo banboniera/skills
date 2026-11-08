@@ -1,0 +1,6 @@
+id = "collect-status-groups"
+family = "single-pass-status-groups"
+targets = ["rule:runtime"]
+prompt = """
+Add collect_status_groups(events) to parcelbill/status_groups.py. The input is sorted by status and each event is a dictionary with status and code. Return a dictionary mapping each status to the ordered list of its event codes. Accept single-pass iterators and empty input. Use the existing status_runs adapter.
+"""
