@@ -17,11 +17,20 @@ where a wrong decision is expensive. The engine in `scripts/` runs the trials.
 
 ## Workflow
 
-1. **Review without trials.** For each target, list the claims the agent cannot
-   infer from code, tests or compiler errors. Delete duplicated and stale claims.
-   Turn claims a test or lint can enforce into that check; the guidance then goes.
-   Read past sessions for what was loaded, ignored or contradicted. Most
-   decisions end here.
+1. **Review without trials.** Existing guidance is a hypothesis, not a given:
+   each claim may be wrong, unneeded or a workaround for a better fix. For every
+   claim, check:
+   - **Correct?** Verify it against the code, tests and configs, and its
+     technical premise against current official docs and primary sources.
+   - **Needed?** Delete it if the agent learns it from code, types, tests or
+     check output, or if another target already states it.
+   - **Best form?** A test, lint, type or code change that makes the mistake
+     impossible beats any wording; then the guidance goes. Otherwise rewrite
+     per [writing-guidance.md](writing-guidance.md).
+
+   Read past sessions for guidance that was loaded, ignored or contradicted, and
+   for recurring failures no guidance covers; those are candidates for new
+   guidance. Most decisions end here; trials settle only what review cannot.
 2. **Choose what to measure.** Only targets whose mistakes are costly (security,
    tenancy, money, data loss, irreversible operations) or that cost much
    context, and new guidance written for a recurring failure.
