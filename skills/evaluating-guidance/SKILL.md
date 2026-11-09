@@ -12,36 +12,56 @@ description: >-
 
 # Evaluating guidance
 
-Existing guidance is a hypothesis. A claim stays only if it is correct, the agent
-needs it, and no test, lint, type or code change could enforce it instead. Most
-claims are settled by review; trials measure behavior only where review cannot
-decide and a wrong decision is expensive. Nothing in the project changes without
-the user's approval.
+Existing guidance is a hypothesis: a claim stays only if the agent needs it, it is
+correct, and nothing better could replace it. Review settles most claims; trials
+measure behavior only where review cannot decide and a wrong decision is
+expensive. Ask the user once how changes are approved: per round, or applied
+autonomously and reported with the full diff at the end.
+
+## Roles
+
+- **Reviewers** (subagents, split by target) judge claims and suggest; they change
+  nothing.
+- **The root agent** waits for every review, then decides from all evidence what
+  to drop, correct, enforce, move or add, including new rules, skills and checks,
+  and applies the guidance changes.
+- **Fixers** (subagents, split by code area) refactor code built under guidance
+  that was dropped or corrected, each fix with a test that proves the correct
+  behavior. A fixer may spawn subagents for parts of its area. Guidance problems
+  a fixer finds go to the root agent as suggestions; fixers change only code.
+
+Follow the project's own multi-agent and verification rules: who runs builds and
+tests, and how changes are integrated.
 
 ## 1. Review every claim
 
-Read each target (AGENTS.md, `.omp/RULES.md`, rules, skills and their files) claim
-by claim and decide:
+Reviewers read each target (AGENTS.md, `.omp/RULES.md`, rules, skills and their
+files) claim by claim, in this order:
 
-- **Correct?** Check it against the code, tests and configs; check its technical
-  premise against current official docs and primary sources. Cite both.
-- **Needed?** The agent learns it anyway from code, types, tests or check output,
-  or another target already says it: delete or keep one home.
-- **Best form?** A test, lint, type or code change that makes the mistake
-  impossible replaces the guidance. Otherwise rewrite it per
-  [writing-guidance.md](writing-guidance.md).
+1. **Needed?** If the agent learns it anyway from code, types, tests or check
+   output, or another target already says it, suggest dropping it (or keeping
+   one home) and stop there.
+2. **Correct?** Check it against the code, tests and configs, and its technical
+   premise against current official docs and primary sources; cite both. If it
+   is wrong, suggest the correction and list the code built under or around it.
+3. **Better?** A test, lint, type or code change that makes the mistake
+   impossible; clearer wording per [writing-guidance.md](writing-guidance.md);
+   a better home.
 
-Mine past sessions for guidance that was loaded, ignored or contradicted, and for
-recurring failures no guidance covers: those are candidates for new guidance.
+Reviewers also mine past sessions for guidance that was ignored or contradicted
+and for recurring failures no guidance covers, and suggest new guidance or
+checks for them.
 
-## 2. Fix, then review again
+## 2. Decide, fix, review again
 
-Wrong guidance leaves wrong code. For every claim found incorrect, search the
-code for what was built under it or around it. Fix the guidance and that code
-together, each code fix with a test that proves the correct behavior; land
-replacing checks before deleting the guidance they replace. Then review the
-changed guidance and code again, and repeat until a pass finds nothing. Follow
-the project's own verification and multi-agent rules while fixing.
+1. The root agent decides from all reviews and applies the guidance changes.
+   A replacing check lands before the guidance it replaces is deleted.
+2. Fixers refactor the code built under dropped or corrected guidance and
+   report any guidance findings.
+3. The root agent verifies the round, then starts a new review of everything the
+   round changed, plus the fixers' suggestions.
+
+Repeat until a review finds nothing.
 
 ## 3. Measure what review cannot settle
 
@@ -67,8 +87,9 @@ guidance written for a recurring failure.
    seen. A case seen in any experiment is no longer independent, so a `holdout`
    in project.toml counts only if set before the first run.
 
-Decide with [decisions.md](decisions.md). Report verdicts, fixes and the diff to
-the user.
+The root agent decides from the results with [decisions.md](decisions.md); a
+changed target goes back through step 2. Report verdicts, fixes and the full diff
+to the user.
 
 ## Commands
 
