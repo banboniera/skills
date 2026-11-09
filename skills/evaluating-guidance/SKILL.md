@@ -30,7 +30,14 @@ where a wrong decision is expensive. The engine in `scripts/` runs the trials.
 
    Read past sessions for guidance that was loaded, ignored or contradicted, and
    for recurring failures no guidance covers; those are candidates for new
-   guidance. Most decisions end here; trials settle only what review cannot.
+   guidance.
+
+   Wrong guidance leaves wrong code behind. For every claim found incorrect,
+   search the code for what was written under it or around it, and fix that
+   code with a test that proves the correct behavior, together with the
+   guidance. Then review the changed guidance and code again; repeat until a
+   pass finds nothing. Most decisions end here; trials settle only what review
+   cannot.
 2. **Choose what to measure.** Only targets whose mistakes are costly (security,
    tenancy, money, data loss, irreversible operations) or that cost much
    context, and new guidance written for a recurring failure.
