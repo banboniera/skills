@@ -5,7 +5,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 import json
-import math
 import os
 from pathlib import Path
 import shutil
@@ -13,10 +12,11 @@ import signal
 import subprocess
 import threading
 import time
-from typing import Any, cast
+from typing import Any
 import uuid
 
 from .arms import USER_ROOT, is_guidance, materialize
+from .budget import RunBudget, account_trials
 from .contracts import FREE_SMOKE_MODEL, Case, Checks, DiscoveredCase, Project, load_json, load_toml
 from .dispatcher import Dispatcher
 from .execution import admission_decision, effective_budget, extract_events, judge_checks, prompt_names_guidance, redact_artifacts
@@ -29,74 +29,10 @@ FREE_MODEL = FREE_SMOKE_MODEL
 
 
 @dataclass
-class RunBudget:
-    limit: float | None
-    costs: dict[str, float] = field(default_factory=dict[str, float])
-    uncertain_caps: set[str] = field(default_factory=set[str])
-    running: float = 0.0
-
-    def __post_init__(self) -> None:
-        if self.limit is not None and (not math.isfinite(self.limit) or self.limit <= 0):
-            raise ValueError("--budget must be a positive finite USD amount")
-
-    @property
-    def spent(self) -> float:
-        return sum(self.costs.values())
-
-    def record(self, trial_id: str, cost: float, uncertain: bool) -> None:
-        self.costs[trial_id] = max(self.costs.get(trial_id, 0), cost)
-        if uncertain:
-            self.uncertain_caps.add(trial_id)
-
-    def admit(self, cap: float) -> bool:
-        if self.uncertain_caps:
-            return False
-        committed = self.spent + self.running + cap
-        if self.limit is not None and committed > self.limit + 1e-12:
-            return False
-        self.running += cap
-        return True
-
-    def release(self, cap: float) -> None:
-        self.running = max(0.0, self.running - cap)
-
-
-@dataclass
 class ExecutionSummary:
     scheduled_ids: list[str] = field(default_factory=list[str])
     infra_errors: dict[str, int] = field(default_factory=dict[str, int])
     stop_reason: str | None = None
-
-
-def usage_spend(paths: list[Path]) -> tuple[float, bool]:
-    """Count measured charges, including failed/interrupted attempts."""
-    total = 0.0
-    uncertain = False
-    for path in paths:
-        measured = 0.0
-        final = 0.0
-        missing = False
-        for line in path.read_text().splitlines():
-            raw: object = json.loads(line)
-            if not isinstance(raw, dict):
-                raise ValueError("invalid usage accounting record")
-            record = cast(dict[str, object], raw)
-            kind = record.get("type")
-            if kind == "request" and record.get("measured") is not True:
-                missing = True
-                continue
-            value = record.get("cost", 0)
-            if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value < 0:
-                raise ValueError("invalid usage accounting cost")
-            if kind == "request":
-                measured += value
-            elif kind == "revoked":
-                final = float(value)
-                count = record.get("unmeasured", 0)
-                missing |= isinstance(count, (int, float)) and count > 0
-        total += measured if missing else max(measured, final)
-        uncertain |= missing
-    return total, uncertain
 
 
 def infrastructure_cause(error: str | None) -> str:
@@ -294,25 +230,6 @@ class RealRunner:
         case = load_toml(Path(spec.case_dir or "") / "case.toml", Case)
         return effective_budget(case.budget, self.project.agent).max_cost
 
-    def account_trials(self, specs: list[TrialSpec], budget: RunBudget) -> None:
-        unique = dict.fromkeys(spec.id for spec in specs)
-        grade_usage: dict[str, list[Path]] = {ident: [] for ident in unique}
-        for path in (self.store.root / "grades").glob("*/manifest.json"):
-            grade = load_json(path, GradeManifest)
-            if grade.trial_id in unique:
-                grade_usage[grade.trial_id].extend((path.parent / "artifacts").glob("judge-usage-*.jsonl"))
-        for ident in unique:
-            directory = self.store.trial_path(ident)
-            agent_paths = list(directory.glob("usage-*.jsonl"))
-            cost, uncertain = usage_spend([*agent_paths, *grade_usage[ident]])
-            manifest = directory / "manifest.json"
-            if manifest.exists():
-                result = self.store.load_trial(ident).result
-                if not agent_paths:
-                    cost += result.cost or 0.0
-                uncertain |= result.accounting_unknown
-            budget.record(ident, cost, uncertain)
-
     def trial_infrastructure_error(self, spec: TrialSpec) -> str | None:
         result = self.store.load_trial(spec.id).result
         if result.status == "infra_error":
@@ -331,14 +248,14 @@ class RealRunner:
         ledger = budget if budget is not None else RunBudget(None)
         unique = list({spec.id: spec for spec in specs}.values())
         summary = ExecutionSummary()
-        self.account_trials(unique, ledger)
+        account_trials(self.store, (spec.id for spec in unique), ledger)
         for spec in unique:
             if not self.store.needs_trial(spec.id):
                 if ledger.limit is not None and ledger.spent >= ledger.limit:
                     summary.stop_reason = "budget"
                     return summary
                 self.grade_trial(spec)
-        self.account_trials(unique, ledger)
+        account_trials(self.store, (spec.id for spec in unique), ledger)
         pending = [spec for spec in unique if self.store.needs_trial(spec.id)]
         first_wave = True
         offset = 0
@@ -365,7 +282,7 @@ class RealRunner:
                 finally:
                     for _, cap in wave:
                         ledger.release(cap)
-                    self.account_trials(unique, ledger)
+                    account_trials(self.store, (spec.id for spec in unique), ledger)
                 causes = [cause for spec, _ in wave if (cause := self.trial_infrastructure_error(spec)) is not None]
                 counts = Counter(summary.infra_errors)
                 counts.update(causes)

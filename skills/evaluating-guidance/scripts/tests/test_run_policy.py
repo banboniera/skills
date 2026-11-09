@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 
-from guidance_evals import runtime
+from guidance_evals import budget as accounting, runtime
 from guidance_evals.cli import main
 from guidance_evals.contracts import Agent, Image, Project
 from guidance_evals.dispatcher import Dispatcher
@@ -83,7 +83,7 @@ def test_triggers_stop_on_measured_spend_and_report_incomplete(tmp_path: Path, m
 def test_run_budget_reserves_running_trial_caps_and_reports_actual_spend(tmp_path: Path) -> None:
     runner = PolicyRunner(tmp_path)
     planned = specs(tmp_path, 5)
-    budget = runtime.RunBudget(3.0)
+    budget = accounting.RunBudget(3.0)
     summary = runner.execute(planned, jobs=4, budget=budget)
     assert len(runner.started) == 2
     assert summary.stop_reason == "budget"
@@ -94,7 +94,7 @@ def test_run_budget_reserves_running_trial_caps_and_reports_actual_spend(tmp_pat
 def test_first_wave_common_infrastructure_failure_stops_remaining_trials(tmp_path: Path) -> None:
     runner = PolicyRunner(tmp_path, failure="dispatcher 429 Budget exhausted")
     planned = specs(tmp_path, 36)
-    summary = runner.execute(planned, jobs=3, budget=runtime.RunBudget(20))
+    summary = runner.execute(planned, jobs=3, budget=accounting.RunBudget(20))
     assert len(runner.started) == 3
     assert summary.stop_reason == "first-wave-infra"
     assert summary.infra_errors == {"dispatcher 429 Budget exhausted": 3}
@@ -104,7 +104,7 @@ def test_resume_counts_prior_spend_without_restarting_completed_trials(tmp_path:
     runner = PolicyRunner(tmp_path)
     planned = specs(tmp_path, 4)
     runner.store.save_trial(planned[0], TrialResult(status="complete", cost=0.8))
-    budget = runtime.RunBudget(2.0)
+    budget = accounting.RunBudget(2.0)
     summary = runner.execute(planned, jobs=3, budget=budget)
     assert runner.started == []
     assert summary.stop_reason == "budget"
@@ -120,13 +120,33 @@ def test_dispatcher_budget_failure_has_a_safe_groupable_cause(tmp_path: Path) ->
     assert "private-detail" not in str(error.value)
 
 
-def test_unmeasured_usage_is_not_reported_as_actual_spend(tmp_path: Path) -> None:
+def test_unmeasured_usage_without_a_ceiling_makes_spend_unbounded(tmp_path: Path) -> None:
     path = tmp_path / "usage.jsonl"
     path.write_text('{"type":"request","measured":true,"cost":0.2}\n'
                     '{"type":"request","measured":false,"cost":0.8}\n'
                     '{"type":"request","measured":false,"cost":null}\n'
                     '{"type":"revoked","cost":1.0,"unmeasured":2}\n')
-    assert runtime.usage_spend([path]) == (0.2, True)
+    assert accounting.usage_spend([path]) == (0.2, True)
+
+
+def test_interrupted_request_counts_at_its_ceiling_and_keeps_the_run_going(tmp_path: Path) -> None:
+    # A run killed mid-request leaves one unmeasured request with a known upper bound.
+    path = tmp_path / "usage.jsonl"
+    path.write_text('{"type":"request","measured":true,"cost":2.0}\n'
+                    '{"type":"request","measured":false,"cost":null,"costCeiling":0.5}\n'
+                    '{"type":"revoked","cost":2.0,"unmeasured":1}\n')
+    assert accounting.usage_spend([path]) == (2.5, False)
+    budget = accounting.RunBudget(10)
+    budget.record("interrupted", 2.5, False)
+    assert budget.admit(6.0)
+    assert not budget.admit(6.0)
+
+
+def test_dispatcher_reporting_more_unmeasured_requests_than_records_is_unbounded(tmp_path: Path) -> None:
+    path = tmp_path / "usage.jsonl"
+    path.write_text('{"type":"request","measured":false,"cost":null,"costCeiling":0.5}\n'
+                    '{"type":"revoked","cost":0.0,"unmeasured":2}\n')
+    assert accounting.usage_spend([path]) == (0.5, True)
 
 
 def test_infrastructure_failure_keeps_its_measured_cost(tmp_path: Path) -> None:
@@ -151,7 +171,7 @@ def test_infrastructure_failure_keeps_its_measured_cost(tmp_path: Path) -> None:
 
 
 def test_unknown_spend_stops_new_trials_even_with_budget_remaining() -> None:
-    budget = runtime.RunBudget(100)
+    budget = accounting.RunBudget(100)
     budget.record("unknown-trial", 0.2, True)
     assert not budget.admit(1.5)
     assert budget.spent == 0.2

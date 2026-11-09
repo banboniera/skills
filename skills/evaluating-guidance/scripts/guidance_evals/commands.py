@@ -20,7 +20,8 @@ from .dispatcher import Dispatcher, reap_dispatchers
 from .execution import extract_events, skill_loaded
 from .identity import admission_id, agent_hash, content_hash, directory_hash, engine_hash, grading_engine_hash, tree_hash
 from .plan import Experiment, expand_experiments, plan_trials
-from .runtime import RealRunner, RunBudget, admit_cases, capture_snapshot, guidance_files, jobs_default, make_spec
+from .budget import RunBudget, account_trials
+from .runtime import RealRunner, admit_cases, capture_snapshot, guidance_files, jobs_default, make_spec
 from .sandbox import Sandbox, hidden_from_seed, janitor, seed_patterns
 from .runner import TrialSpec
 from .store import Store, atomic_model, atomic_write
@@ -178,7 +179,7 @@ def run_experiment(runner: RealRunner, path: Path, jobs: int, *, budget: float |
         atomic_model(plan_path_value, frozen)
         planned.append((frozen, plan_path_value))
     all_specs = [spec for frozen, _ in planned for spec in frozen.trials]
-    runner.account_trials(all_specs, ledger)
+    account_trials(runner.store, (spec.id for spec in all_specs), ledger)
     causes: Counter[str] = Counter()
     stop_reason: str | None = None
     for frozen, path_value in planned:
@@ -197,7 +198,7 @@ def run_experiment(runner: RealRunner, path: Path, jobs: int, *, budget: float |
             "scheduled_trials": len(scheduled), "complete_trials": len(completed),
             "spent": ledger.spent, "budget": ledger.limit,
             "budget_overshoot": max(0.0, ledger.spent - ledger.limit) if ledger.limit is not None else 0.0,
-            "unmeasured_trials": len(ledger.uncertain_caps), "stop_reason": stop_reason,
+            "unbounded_spend_trials": len(ledger.unbounded), "stop_reason": stop_reason,
             "infra_errors": dict(causes), "infra_error_count": error_count,
             "summary": f"{error_count} infra errors: {description}" if causes else "no infrastructure errors"}
 
@@ -226,7 +227,7 @@ def measure_triggers(runner: RealRunner, skill: str, budget: float | None) -> di
                  "window": trigger.window, "readonly": True}, case, replicate=replicate)
             specs.append(spec)
             if runner.store.needs_trial(spec.id):
-                runner.account_trials(specs, ledger)
+                account_trials(runner.store, (s.id for s in specs), ledger)
                 cap = runner.trial_cap(spec)
                 if not ledger.admit(cap):
                     stop_reason = "budget"
@@ -241,7 +242,7 @@ def measure_triggers(runner: RealRunner, skill: str, budget: float | None) -> di
             evidence = extract_events(runner.store.trial_path(spec.id) / "events.jsonl")
             results.append({"should": should, "loaded": skill_loaded(evidence["commands"], skill, trigger.window),
                             "trial": spec.id})
-        runner.account_trials(specs, ledger)
+        account_trials(runner.store, (s.id for s in specs), ledger)
     should_results = [r["loaded"] for r in results if r["should"]]
     near_misses = [r["loaded"] for r in results if not r["should"]]
     complete = stop_reason is None
