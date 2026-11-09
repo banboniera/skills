@@ -36,12 +36,14 @@ Reviewer findings in those runs are claims to check, not observed failures.
 
 ## Method
 
-1. **Note.** Per session, write one line for the first thing that went wrong,
-   with the session file and a short quote. A session with nothing wrong gets
-   no note.
+1. **Note.** A session holds many tasks, so note each user correction,
+   rejection or repeated instruction, and each failure the user had to point
+   out: one line with the session file, timestamp, a short quote and what the
+   agent did wrong. A provider error that a fallback recovered is one "not
+   guidance" line in total.
 2. **Group.** Cluster the notes into failure modes with plain names
    ("starts services the user said not to touch").
-3. **Count.** Sessions per failure mode.
+3. **Count.** Occurrences and distinct sessions per failure mode.
 4. **Attribute** each mode to one cause:
    - **missing guidance:** nothing told the agent, and it could not have
      learned it from the code;
