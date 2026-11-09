@@ -33,9 +33,10 @@ target loaded in the `with` arm. Otherwise the action is `retry`, `next-look`,
 its trigger is broken, or the cases do not exercise it (then it costs no context
 on such work).
 
-A check that enforces a target's whole claim justifies deleting it without an
-experiment. After deletions against dev cases, a holdout comparison against the
-original catches dependencies between targets.
+A check, test or primary source that settles a target's whole claim justifies
+keeping, correcting or deleting it without an experiment. After deletions, a
+comparison against the original on families no run has seen catches
+dependencies between targets.
 
 An inconclusive whole-harness screen never deletes the harness; it says where to
 look next.

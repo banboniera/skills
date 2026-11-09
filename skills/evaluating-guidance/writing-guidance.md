@@ -1,6 +1,8 @@
 # Writing guidance
 
-Rewrites follow this standard, then must beat the old version in an experiment.
+A correction proven by code, tests or primary sources needs no experiment. A
+rewrite that changes guided behavior on a costly target must beat the old
+version in one.
 
 ## What earns a line
 
@@ -52,5 +54,5 @@ exactly when to open what.
 ## Checking a rewrite
 
 1. Triggers: should/should-not prompts (skills), grep-verified conditions (rules).
-2. Behavior: `compare` the new version against the old on dev cases; keep it only
-   on a measured win or an equivalent result with less context.
+2. Behavior, when measured: `compare` the new version against the old; keep it
+   only on a measured win or an equivalent result with less context.
