@@ -1,6 +1,0 @@
-id = "monthly-charge"
-family = "included-seat-billing"
-targets = ["rule:positive", "rule:negative", "rule:null"]
-prompt = """
-Add monthly_charge(base: str, seats: int, included: int, per_extra: str) -> str to parcelbill/subscriptions.py. Charge the base plus the per-extra rate for seats above the included allowance, never subtracting for unused included seats. Return a fixed two-decimal monetary string rounded to the nearest cent after computing the total. Inputs are nonnegative. Preserve extra_seats.
-"""

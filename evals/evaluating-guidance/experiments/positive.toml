@@ -1,4 +1,0 @@
-name = "ctl-positive"
-kind = "compare"
-arms = ["minus:rule:negative", "minus:monetary"]
-relevant_targets = ["rule:positive"]

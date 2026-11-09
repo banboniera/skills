@@ -1,6 +1,0 @@
-id = "invoice-total"
-family = "invoice-line-aggregation"
-targets = ["rule:positive", "rule:negative", "rule:null"]
-prompt = """
-Add invoice_total(lines: list[dict[str, str | int]], credit: str) -> str to parcelbill/invoices.py. Each line has integer quantity and decimal-string unit_price. Sum quantity times unit_price across lines, then subtract credit. Return a fixed two-decimal monetary string rounded to the nearest cent once, after aggregation. Negative totals are allowed. Keep line_codes intact.
-"""

@@ -1,6 +1,0 @@
-id = "taxed-total"
-family = "tax-gross-up"
-targets = ["rule:positive", "rule:negative", "rule:null"]
-prompt = """
-Add taxed_total(net: str, rate_percent: str) -> str to parcelbill/tax.py. The rate is a percentage, not a fraction. Return net plus its tax as a fixed two-decimal monetary string, rounded to the nearest cent after the calculation. Preserve the existing tax-region lookup.
-"""

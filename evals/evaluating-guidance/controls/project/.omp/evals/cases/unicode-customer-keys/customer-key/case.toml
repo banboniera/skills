@@ -1,6 +1,0 @@
-id = "customer-key"
-family = "unicode-customer-keys"
-targets = ["rule:runtime"]
-prompt = """
-Add customer_key(label: str) -> str to parcelbill/customer_keys.py. Return a whitespace-trimmed, compatibility-normalized, case-insensitive key for customer-label deduplication. Equivalent styled and ordinary lettering must share a key. Keep the original display_label behavior.
-"""

@@ -1,5 +1,0 @@
-name = "ctl-runtime"
-kind = "compare"
-arms = ["minus:rule:negative", "minus:runtime-and-negative"]
-relevant_targets = ["rule:runtime"]
-replicates = 6

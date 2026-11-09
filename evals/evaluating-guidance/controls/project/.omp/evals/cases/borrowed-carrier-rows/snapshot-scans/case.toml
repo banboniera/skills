@@ -1,6 +1,0 @@
-id = "snapshot-scans"
-family = "borrowed-carrier-rows"
-targets = ["rule:runtime"]
-prompt = """
-Add snapshot_scans(rows) to parcelbill/scans.py. Consume an iterable of carrier scan dictionaries and return independent record snapshots in arrival order. Each dictionary has a code and a nested details dictionary. The caller may retain the output after the carrier iterator advances. Preserve the values from each arrival, including empty input.
-"""

@@ -1,6 +1,0 @@
-id = "elapsed-seconds"
-family = "daylight-saving-elapsed-time"
-targets = ["rule:runtime"]
-prompt = """
-Add elapsed_seconds(start, end) to parcelbill/transit.py for carrier transit metrics. Inputs are timezone-aware datetime objects. Return the integer number of actual elapsed seconds between the instants; negative intervals are allowed. It must work across clock changes as well as ordinary days. Keep the existing carrier_zone helper.
-"""

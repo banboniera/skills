@@ -1,6 +1,0 @@
-id = "shipping-quote"
-family = "weight-rate-shipping"
-targets = ["rule:positive", "rule:negative", "rule:null"]
-prompt = """
-Add shipping_quote(weight_kg: str, per_kg: str, handling: str, minimum: str) -> str to parcelbill/shipping.py. Multiply weight by the per-kilogram rate, add handling, then apply the minimum charge. Return a fixed two-decimal monetary string rounded to the nearest cent, without rounding any intermediate value. Keep billable_weight unchanged.
-"""
