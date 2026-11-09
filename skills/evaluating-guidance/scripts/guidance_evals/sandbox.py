@@ -794,6 +794,10 @@ class TrialEnvironment:
                 "--user", "0:0" if root_user else "1000:1000"]
 
     def _mount(self, host: Path, target: str, readonly: bool = False) -> list[str]:
+        # `:Z` relabels the host path for this trial's private MCS level; a path shared with
+        # concurrent trials would be relabeled away from them, so only trial-owned paths mount.
+        if not host.resolve().is_relative_to(self.root.resolve()):
+            raise SandboxError(f"mount source outside the trial root: {host}")
         return ["--volume", f"{host}:{target}:{'ro,' if readonly else ''}Z"]
 
     def _env(self, *, warm: bool = False) -> dict[str, str]:
@@ -842,7 +846,9 @@ class TrialEnvironment:
         argv += ["--detach", "--env-file", str(env_path)]
         if service.init:
             relative_path(service.init)
-            argv += self._mount(self.seed.root / "repo" / service.init, "/docker-entrypoint-initdb.d", True)
+            init = self.root / "service-init" / key
+            _copy(self.seed.root / "repo" / service.init, init)
+            argv += self._mount(init, "/docker-entrypoint-initdb.d", True)
         _command([*argv, service.image, *service.args])
         wait_for_service(name, service.ready)
 

@@ -312,3 +312,21 @@ def test_service_readiness_survives_a_stalled_probe_but_not_the_deadline(monkeyp
     assert probes == ["pg_isready", "pg_isready"]
     with pytest.raises(SandboxError, match="failed readiness"):
         wait_for_service("db", "never", deadline_seconds=0.05)
+
+
+def test_mounts_refuse_paths_shared_outside_the_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # `:Z` relabels a mount for one trial's MCS level; a shared path would break concurrent trials.
+    trial = _trial(tmp_path, monkeypatch)
+    _prepare_without_pod(trial)
+    launched: list[list[str]] = []
+
+    def command(argv: list[str], **_kwargs: object) -> None:
+        launched.append(argv)
+
+    monkeypatch.setattr("guidance_evals.sandbox._command", command)
+    shared = tmp_path / "seed/repo"
+    with pytest.raises(SandboxError, match="outside the trial root"):
+        trial.run_command(["true"], extra_mounts=[(shared, "/shared", True)])
+    assert launched == []
+    trial.run_command(["true"], extra_mounts=[(trial.control, "/own", True)])
+    assert any(f"{trial.control}:/own:ro,Z" in arg for arg in launched[0])
