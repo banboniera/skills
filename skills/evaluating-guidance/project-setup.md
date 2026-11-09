@@ -34,7 +34,7 @@ Dependencies are fetched in the image or seed warm-up; trial pods have no networ
 | `smoke_model` | Free or local model for `smoke` and `--free` runs (default a free OpenRouter model); change it when the provider rate-limits. |
 | `judge` | Judge model (default `openrouter/~typesafe/jev-latest`) and pass/fail probability thresholds. A `second` judge is optional and diagnostic only. |
 | `protected` | Targets an inconclusive result cannot delete: security, tenancy, data integrity, production operations. |
-| `holdout` | Percent of families sealed for final validation (default 0). Set it before rewriting guidance against the cases. |
+| `holdout` | Percent of families sealed for final validation (default 0). Only independent if set before the first experiment; otherwise validate on cases no run has seen. |
 | `blocks.<name>` | Targets with overlapping cases, ablated together first. Targets with disjoint cases, usually procedure skills, stay out. |
 
 ## Before the first experiment

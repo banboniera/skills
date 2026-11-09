@@ -38,10 +38,11 @@ where a wrong decision is expensive. The engine in `scripts/` runs the trials.
    `minus:<target>` when a target's cases fail without guidance or look harmed.
    Blocks and splits are for many targets sharing cases.
 7. **Decide** with [decisions.md](decisions.md); rewrite per
-   [writing-guidance.md](writing-guidance.md). When rewriting against the cases,
-   seal a holdout first (`holdout` in project.toml) and confirm the final
-   harness on it. Give the user the report and diff; change nothing without
-   approval.
+   [writing-guidance.md](writing-guidance.md). Confirm a rewrite against the
+   original on families no earlier run has observed: cases kept out of every
+   experiment so far, or fresh ones. A case seen in a screen is no longer
+   independent, so `holdout` in project.toml helps only if set before the first
+   run. Give the user the report and diff; change nothing without approval.
 
 ## Commands
 
