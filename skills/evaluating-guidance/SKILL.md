@@ -70,7 +70,11 @@ only with free/local models. Never delete guidance from a smoke report.
 ## Rules
 
 - Verdicts use the production model; free or local models only smoke-test.
-- Paid runs need a budget the user approved; pass it as `--budget`.
+- Paid runs need a budget the user approved; pass it as `--budget`. It counts
+  spend already made by the same frozen plan, so a resumed run stays within it.
+  A changed case, engine or project starts a new plan that cannot see earlier
+  spend: pass the approval minus what earlier plans spent. Estimate the cost
+  first from a small capped run, because trial cost varies widely by project.
 - Never select, tune or drop cases because arms did not differ.
 - Never read holdout results while improving guidance.
 - Loads and rule firings are diagnostics, never scores.

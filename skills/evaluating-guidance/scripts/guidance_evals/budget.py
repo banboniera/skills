@@ -63,7 +63,8 @@ def usage_spend(paths: list[Path]) -> tuple[float, bool]:
 
     A request interrupted before its cost was measured counts at the ceiling the
     dispatcher recorded for it. The flag is true when some request has no ceiling,
-    so the true spend is unbounded.
+    or was started but never settled (the dispatcher died mid-request), so the true
+    spend is unbounded.
     """
     total = 0.0
     unbounded = False
@@ -71,6 +72,8 @@ def usage_spend(paths: list[Path]) -> tuple[float, bool]:
         measured = 0.0
         final = 0.0
         unmeasured = 0
+        started = 0
+        settled = 0
         reported_unmeasured = 0.0
         for line in path.read_text().splitlines():
             raw: object = json.loads(line)
@@ -78,6 +81,10 @@ def usage_spend(paths: list[Path]) -> tuple[float, bool]:
                 raise ValueError("invalid usage accounting record")
             record = cast(dict[str, object], raw)
             kind = record.get("type")
+            if kind == "request_start":
+                started += 1
+            elif kind == "request":
+                settled += 1
             if kind == "request" and record.get("measured") is not True:
                 unmeasured += 1
                 ceiling = record.get("costCeiling")
@@ -90,8 +97,9 @@ def usage_spend(paths: list[Path]) -> tuple[float, bool]:
             elif kind == "revoked":
                 final = _amount(record.get("cost", 0), "cost")
                 reported_unmeasured = _amount(record.get("unmeasured", 0), "unmeasured count")
-        # An unmeasured request without its own record has no recorded ceiling.
-        unbounded |= reported_unmeasured > unmeasured
+        # An unmeasured request without its own record has no recorded ceiling, and a
+        # start without a settlement left no record of what it cost.
+        unbounded |= reported_unmeasured > unmeasured or started > settled
         # The dispatcher's final total excludes unmeasured requests, so it only stands
         # in for the request records when every request was measured.
         total += measured if unmeasured else max(measured, final)

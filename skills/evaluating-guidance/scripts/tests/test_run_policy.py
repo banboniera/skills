@@ -149,6 +149,15 @@ def test_dispatcher_reporting_more_unmeasured_requests_than_records_is_unbounded
     assert accounting.usage_spend([path]) == (0.5, True)
 
 
+def test_request_started_but_never_settled_makes_spend_unbounded(tmp_path: Path) -> None:
+    # A dispatcher killed mid-request (SIGKILL, reboot) writes the start but no settlement or revoke.
+    path = tmp_path / "usage.jsonl"
+    path.write_text('{"type":"registered","max_cost":6}\n'
+                    '{"type":"request_start"}\n{"type":"request","measured":true,"cost":1.0}\n'
+                    '{"type":"request_start"}\n')
+    assert accounting.usage_spend([path]) == (1.0, True)
+
+
 def test_infrastructure_failure_keeps_its_measured_cost(tmp_path: Path) -> None:
     from contextlib import nullcontext
     from unittest.mock import patch
