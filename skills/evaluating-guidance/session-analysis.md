@@ -16,8 +16,9 @@ group, count ([Husain](https://hamel.dev/blog/posts/evals-faq/why-is-error-analy
   `read <file>.jsonl?q=select(.type=="message" and .message.role=="user") | .message.content[]? | select(.type=="text") | .text`.
   Rule injections: `select(.type=="ttsr_injection")`.
 
-Split the window's sessions across subagents, a few sessions each. Skip
-sessions of this skill's own runs.
+Split the window's sessions across subagents, a few sessions each. Include this
+skill's own runs: user corrections and failures there count like any other.
+Reviewer findings in those runs are claims to check, not observed failures.
 
 ## What to look for
 
