@@ -99,12 +99,16 @@ async function paidTrial(route: (request: Request) => Promise<Response>) {
   });
   const registered = await control("/register", { models: [opusId], max_cost: 1.5, usage_path: usagePath });
   const { token } = await registered.json();
+  const inference = (options: Record<string, unknown>, signal?: AbortSignal): RequestInit => ({
+    method: "POST", headers: { ...headers, authorization: `Bearer ${token}` }, signal,
+    body: JSON.stringify({ modelId: opusId, stream: false, options,
+      context: { messages: [{ role: "user", content: [{ type: "text", text: "Add a regression test." }] }] } }),
+  });
+  const url = `http://127.0.0.1:${gateway.port}/v1/pi/stream`;
   return {
-    request: (options: Record<string, unknown> = {}) => fetch(`http://127.0.0.1:${gateway.port}/v1/pi/stream`, {
-      method: "POST", headers: { ...headers, authorization: `Bearer ${token}` },
-      body: JSON.stringify({ modelId: opusId, stream: false, options,
-        context: { messages: [{ role: "user", content: [{ type: "text", text: "Add a regression test." }] }] } }),
-    }),
+    request: (options: Record<string, unknown> = {}) => fetch(url, inference(options)),
+    // In process, so a test decides exactly when the client aborts.
+    dispatch: (signal: AbortSignal) => gateway.dispatch(new Request(url, inference({}, signal))),
     revoke: () => control("/revoke", { token }),
     log: () => readFileSync(usagePath, "utf8"),
     async close() { await gateway.close(); rmSync(root, { recursive: true, force: true }); },
@@ -173,6 +177,89 @@ test("missing upstream usage fails closed without recording hypothetical spend",
       pending: 0, pendingCostCeiling: 0, overshoot: 0, unmeasured: 1 });
     expect(trial.log()).toContain('"measured":false,"cost":null');
   } finally { await trial.close(); }
+});
+
+// An SSE upstream that holds its final usage until `release`. `finished`
+// resolves once the gateway has read past the usage event or cancelled.
+function heldStream(cost: number) {
+  const release = Promise.withResolvers<void>();
+  const finished = Promise.withResolvers<void>();
+  const encode = (event: unknown) => new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+  let cancellations = 0;
+  let step = 0;
+  const body = new ReadableStream<Uint8Array>({
+    async pull(output) {
+      step++;
+      if (step === 1) output.enqueue(encode({ type: "text_delta" }));
+      else if (step === 2) {
+        await release.promise;
+        output.enqueue(encode({ type: "done", message: { usage: { input: 3, output: 2, cost: { total: cost } } } }));
+      } else {
+        output.close();
+        finished.resolve();
+      }
+    },
+    cancel() { cancellations++; finished.resolve(); },
+  });
+  return { release, finished, cancellations: () => cancellations,
+    response: () => new Response(body, { headers: { "content-type": "text/event-stream" } }) };
+}
+
+// omp aborts its own requests (background job widgets, rule interrupts). Usage
+// is read to the end, so the trial keeps running on measured spend.
+test("a client cancel mid-stream still measures usage and admits later requests", async () => {
+  const upstream = heldStream(0.25);
+  let calls = 0;
+  const trial = await paidTrial(async () => {
+    calls++;
+    return calls === 1 ? upstream.response()
+      : Response.json({ message: { usage: { input: 1, output: 1, cost: { total: 0.01 } } } });
+  });
+  const client = new AbortController();
+  try {
+    const streamed = await trial.dispatch(client.signal);
+    const reader = streamed.body?.getReader();
+    if (!reader) throw new Error("expected a streamed body");
+    await reader.read();
+    client.abort();
+    await reader.cancel();
+    upstream.release.resolve();
+    await upstream.finished.promise;
+    const next = await trial.request();
+    expect(next.status).toBe(200);
+    await next.json();
+    expect(upstream.cancellations()).toBe(0);
+    expect(await (await trial.revoke()).json()).toMatchObject({ cost: 0.26, requests: 2, unmeasured: 0 });
+  } finally { upstream.release.resolve(); await trial.close(); }
+});
+
+test("a client abort before the upstream responds still measures usage", async () => {
+  const upstream = heldStream(0.25);
+  const responded = Promise.withResolvers<void>();
+  const routed = Promise.withResolvers<void>();
+  let calls = 0;
+  const trial = await paidTrial(async () => {
+    calls++;
+    if (calls > 1) return Response.json({ message: { usage: { input: 1, output: 1, cost: { total: 0.01 } } } });
+    routed.resolve();
+    await responded.promise;
+    return upstream.response();
+  });
+  const client = new AbortController();
+  try {
+    const pending = trial.dispatch(client.signal);
+    await routed.promise;
+    client.abort();
+    responded.resolve();
+    await pending;
+    upstream.release.resolve();
+    await upstream.finished.promise;
+    expect(upstream.cancellations()).toBe(0);
+    const next = await trial.request();
+    expect(next.status).toBe(200);
+    await next.json();
+    expect(await (await trial.revoke()).json()).toMatchObject({ cost: 0.26, requests: 2, unmeasured: 0 });
+  } finally { responded.resolve(); upstream.release.resolve(); await trial.close(); }
 });
 
 test("invalid output limits never reach the router and valid limits are wired through", async () => {

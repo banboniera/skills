@@ -41,6 +41,8 @@ function log(trial: Trial, record: Record<string, unknown>): void {
 
 export function createGateway(options: GatewayOptions): {
   port: number; controlPort: number; close: () => Promise<void>;
+  /** Serves one inference request in process, with the caller's abort signal. */
+  dispatch: (request: Request) => Promise<Response>;
 } {
   const trials = new Map<string, Trial>();
   let closing = false;
@@ -125,18 +127,18 @@ export function createGateway(options: GatewayOptions): {
         }
         throw error;
       }
+      // Revocation and upstream failure abort upstream. A client abort does not:
+      // omp aborts its own requests (job widgets, rule interrupts), and reading on
+      // to the final usage keeps the trial's spend measured.
       const controller = new AbortController();
-      const signal = AbortSignal.any([request.signal, controller.signal]);
       const usage = new UsageReader(model);
       const { promise: done, resolve: complete } = Promise.withResolvers<void>();
-      let cancelStream: (() => void) | undefined;
       const active = { controller, done };
       trial.active.add(active);
       let finished = false;
       const settle = () => {
         if (finished) return;
         finished = true;
-        if (cancelStream) signal.removeEventListener("abort", cancelStream);
         lease.settle(usage.usage?.cost, usage.usage?.tokens ?? 0);
         trial.active.delete(active);
         complete();
@@ -151,7 +153,8 @@ export function createGateway(options: GatewayOptions): {
         log(trial, { type: "request_start", model: selector, route: path });
         // No client bearer, forwarded headers or control secret enters the SDK.
         const response = await trial.router.route(new Request(`http://localhost${path}`, {
-          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal,
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+          signal: controller.signal,
         }), "guidance-evals");
         if (!response.ok) {
           await response.body?.cancel();
@@ -166,41 +169,34 @@ export function createGateway(options: GatewayOptions): {
         }
         if (!response.body) throw new Error("Missing upstream stream");
         const reader = response.body.getReader();
-        const cancelled = async () => {
-          try { await reader.cancel(); } finally { settle(); }
-        };
-        cancelStream = () => {
-          void cancelled().catch(() => {
-            // Cancellation is an API boundary too: prohibit reuse when the
-            // upstream cannot be cancelled, without guessing billed usage.
-            trial.revoked = true;
-          });
-        };
-        signal.addEventListener("abort", cancelStream, { once: true });
-        if (signal.aborted) await cancelled();
+        controller.signal.addEventListener("abort", () => {
+          // Cancellation is an API boundary too: prohibit reuse when the
+          // upstream cannot be cancelled, without guessing billed usage.
+          reader.cancel().catch(() => { trial.revoked = true; });
+        }, { once: true });
+        let client: ReadableStreamDefaultController<Uint8Array> | undefined;
         const stream = new ReadableStream<Uint8Array>({
-          async pull(output) {
-            try {
-              const chunk = await reader.read();
-              if (chunk.done) {
-                usage.end();
-                settle();
-                output.close();
-              } else {
-                usage.push(chunk.value);
-                output.enqueue(chunk.value);
-              }
-            } catch {
-              controller.abort();
-              settle();
-              output.error(new Error("Inference stream failed"));
-            }
-          },
-          async cancel() { controller.abort(); await cancelled(); },
+          start(output) { client = output; },
+          cancel() { client = undefined; },
         });
+        void (async () => {
+          try {
+            for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+              usage.push(chunk.value);
+              client?.enqueue(chunk.value);
+            }
+            usage.end();
+            settle();
+            client?.close();
+          } catch {
+            controller.abort();
+            settle();
+            client?.error(new Error("Inference stream failed"));
+          }
+        })();
         return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-store" } });
       } catch {
-        const aborted = signal.aborted;
+        const aborted = request.signal.aborted;
         controller.abort();
         settle();
         // This is the public API error boundary. Never echo SDK exceptions or
@@ -264,6 +260,7 @@ export function createGateway(options: GatewayOptions): {
   }
   return {
     port: data.port, controlPort: control.port,
+    async dispatch(request) { return await data.fetch(request); },
     async close() {
       closing = true;
       await Promise.all([...trials.values()].map(revoke));

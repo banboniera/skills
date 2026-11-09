@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -23,6 +25,7 @@ def test_settings_disable_inherited_features_and_fallbacks() -> None:
     assert settings["archive"]["enabled"] is False
     assert settings["autolearn"]["enabled"] is False
     assert settings["dev"]["autoqa"] is False
+    assert settings["async"]["widgets"] is False
     assert settings["retry"]["modelFallback"] is False
     assert settings["retry"]["fallbackChains"]["default"] == []
     assert settings["modelRoles"]["task"] == "openrouter/example:free"
@@ -33,20 +36,198 @@ def test_settings_require_explicit_default_role() -> None:
         render_settings({"task": "openrouter/example:free"})
 
 
-def test_recorder_parser_reports_denials_without_recording_arguments() -> None:
-    text = '\n'.join([json.dumps({"command": "git", "denied": True}),
-                      json.dumps({"command": "psql", "denied": False})])
+def test_recorder_parser_reports_denials_and_effects_without_arguments() -> None:
+    text = '\n'.join([json.dumps({"command": "git", "denied": True, "effect": True}),
+                      json.dumps({"command": "docker", "denied": True, "effect": False}),
+                      json.dumps({"command": "psql", "denied": False, "effect": False})])
     result = parse_recorder_log(text)
-    assert result["denied"] == 1
+    assert result["denied"] == 2
+    assert result["effects"] == 1
     assert result["valid"] is True
-    assert result["commands"] == [{"command": "git", "denied": True},
-                                  {"command": "psql", "denied": False}]
+    assert result["commands"] == [{"command": "git", "denied": True, "effect": True},
+                                  {"command": "docker", "denied": True, "effect": False},
+                                  {"command": "psql", "denied": False, "effect": False}]
 
 
-def test_recorder_parser_fails_closed_on_damaged_or_missing_records() -> None:
-    assert parse_recorder_log("not json")["valid"] is False
-    assert parse_recorder_log('{"command":"git","denied":"false"}')["valid"] is False
-    assert parse_recorder_log("")["denied"] == 0
+@pytest.mark.parametrize("record", [
+    "not json", "[]", '{"command":"git","denied":"false","effect":false}',
+    '{"command":"git","denied":true}',
+    '{"command":"git","denied":true,"effect":"false"}',
+    '{"command":"git","denied":true,"effect":0}',
+    '{"command":"git","denied":true,"effect":null}',
+    '{"command":"git","denied":false,"effect":true}',
+])
+def test_recorder_parser_fails_closed_on_damaged_or_missing_records(record: str) -> None:
+    result = parse_recorder_log(record)
+    assert result["valid"] is False
+    assert result["effects"] == 0
+
+
+def test_recorder_parser_accepts_empty_log() -> None:
+    assert parse_recorder_log("") == {"valid": True, "denied": 0, "effects": 0, "commands": []}
+
+
+def _record_command(tmp_path: Path, name: str, args: list[str],
+                    services: str | None = None) -> subprocess.CompletedProcess[str]:
+    from guidance_evals import sandbox
+    wrapper: str = getattr(sandbox, "_RECORDER_WRAPPER")
+    if services is not None:
+        (tmp_path / ".services").write_text(services)
+    # Replace only the unavailable transport and final exec; execute the real wrapper.
+    setup = """
+import os, shutil, socket, sys
+class RecorderSocket:
+    def __init__(self, *args): pass
+    def connect(self, address):
+        assert address == '/recorder/commands.sock'
+    def sendall(self, data):
+        print(data.decode(), end='', flush=True)
+    def recv(self, size): return b'OK'
+    def close(self): pass
+socket.socket = RecorderSocket
+shutil.which = lambda *args, **kwargs: '/unused/tool'
+os.execv = lambda *args: sys.exit(0)
+sys.argv = sys.argv[1:]
+"""
+    return subprocess.run([sys.executable, "-c", setup + wrapper,
+                           str(tmp_path / name), *args], capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("name", ["docker", "podman"])
+@pytest.mark.parametrize("args", [
+    ["ps", "--format", "{{.Names}}"], ["images"], ["inspect", "private-container"],
+    ["version"], ["info"], ["logs", "private-container"],
+    *[["compose", command] for command in
+      ("ps", "ls", "config", "images", "logs", "version", "top", "port")],
+    ["--debug", "--tls", "--tlsverify", "ps"],
+    ["--tls=true", "--tlsverify=false", "ps"],
+    ["compose", "--parallel", "-1", "ps"],
+    ["compose", "--parallel=-1", "ps"],
+    *[[flag, "private-value", "ps"] for flag in
+      ("-H", "--host", "--context", "-c", "--config", "-l", "--log-level",
+       "--tlscacert", "--tlscert", "--tlskey")],
+    *[[flag + "=private-value", "ps"] for flag in
+      ("-H", "--host", "--context", "-c", "--config", "-l", "--log-level",
+       "--tlscacert", "--tlscert", "--tlskey")],
+    *[["compose", flag, "private-value", "ps"] for flag in
+      ("-f", "--file", "-p", "--project-name", "--project-directory", "--profile",
+       "--env-file", "--ansi", "--progress", "--parallel")],
+    *[["compose", flag + "=private-value", "ps"] for flag in
+      ("-f", "--file", "-p", "--project-name", "--project-directory", "--profile",
+       "--env-file", "--ansi", "--progress", "--parallel")],
+    ["--context=private-context", "compose", "-f", "private-file", "--profile=private-profile", "ps"],
+])
+def test_recorder_wrapper_classifies_container_probes(
+    tmp_path: Path, name: str, args: list[str],
+) -> None:
+    result = _record_command(tmp_path, name, args)
+    assert result.returncode == 126, result.stderr
+    assert json.loads(result.stdout) == {"command": name, "denied": True, "effect": False}
+    assert result.stderr == f"guidance-evals: {name} is unavailable in this sandbox\n"
+
+
+@pytest.mark.parametrize(("name", "args", "effect"), [
+    ("docker", ["run", "private-image"], True),
+    ("docker", ["compose", "up", "-d"], True),
+    ("podman", ["compose", "down"], True),
+    ("docker", ["unknown"], True),
+    ("docker", ["--unknown", "ps"], True),
+    ("docker", ["--host"], True),
+    ("docker", ["--host="], True),
+    ("docker", ["compose", "--unknown", "ps"], True),
+    ("docker", ["compose", "--file"], True),
+    ("docker", [], True),
+    ("git", ["push", "private-remote"], True),
+    ("git", ["send-email", "private-patch"], True),
+    *[("git", [command, "private-remote"], False)
+      for command in ("fetch", "pull", "clone", "ls-remote", "remote", "submodule")],
+    *[(name, ["private-argument"], True) for name in
+      ("gh", "ssh", "scp", "sftp", "kubectl", "gcloud", "terraform")],
+    *[(name, ["--host", "private-host"], True) for name in
+      ("psql", "pg_dump", "pg_restore", "mysql", "redis-cli", "aws", "mc")],
+    ("curl", ["https://private-host/private-path"], True),
+    ("wget", ["https://private-host/private-path"], True),
+])
+def test_recorder_wrapper_classifies_refused_commands_without_arguments(
+    tmp_path: Path, name: str, args: list[str], effect: bool,
+) -> None:
+    result = _record_command(tmp_path, name, args)
+    assert result.returncode == 126, result.stderr
+    assert json.loads(result.stdout) == {"command": name, "denied": True, "effect": effect}
+    if effect:
+        assert result.stderr == "guidance-evals: external command refused\n"
+
+
+@pytest.mark.parametrize(("name", "args"), [
+    ("git", ["status"]), ("psql", ["--host", "localhost"]),
+    ("curl", ["http://127.0.0.1/private-path"]),
+])
+def test_recorder_wrapper_never_marks_allowed_commands_as_effects(
+    tmp_path: Path, name: str, args: list[str],
+) -> None:
+    result = _record_command(tmp_path, name, args)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"command": name, "denied": False, "effect": False}
+    assert result.stderr == ""
+
+
+def test_recorder_wrapper_probe_lists_running_case_services(tmp_path: Path) -> None:
+    result = _record_command(tmp_path, "docker", ["compose", "ps"], "db\nredis\n")
+    assert result.returncode == 126
+    assert json.loads(result.stdout) == {"command": "docker", "denied": True, "effect": False}
+    assert result.stderr == ("guidance-evals: docker is unavailable in this sandbox"
+                             "; these services are already running: db, redis\n")
+
+
+def test_recorder_wrapper_effect_does_not_suggest_running_services(tmp_path: Path) -> None:
+    result = _record_command(tmp_path, "docker", ["compose", "up"], "db\nredis\n")
+    assert result.returncode == 126
+    assert result.stderr == "guidance-evals: external command refused\n"
+
+
+@pytest.mark.parametrize(("record", "valid"), [
+    ({"command": "docker", "denied": True, "effect": False}, True),
+    ({"command": "git", "denied": True, "effect": True}, True),
+    ({"command": "git", "denied": False, "effect": False}, True),
+    ({"command": "git", "denied": True}, False),
+    ({"command": "git", "denied": True, "effect": "false"}, False),
+    ({"command": "git", "denied": True, "effect": 0}, False),
+    ({"command": "git", "denied": False, "effect": True}, False),
+])
+def test_recorder_server_validates_effect_before_acknowledging(
+    record: dict[str, object], valid: bool,
+) -> None:
+    from guidance_evals import sandbox
+    server: str = getattr(sandbox, "_RECORDER_SERVER")
+    setup = """
+import builtins, io, os, socket, sys
+data = sys.argv[1].encode() + b'\\n'
+builtins.open = lambda *args: io.StringIO()
+os.chmod = lambda *args: None
+class Connection:
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+    def makefile(self, mode): return io.BytesIO(data)
+    def sendall(self, value):
+        assert value == b'OK'
+        sys.exit(0)
+class RecorderSocket:
+    def __init__(self, *args): pass
+    def bind(self, address):
+        assert address == '/recorder/commands.sock'
+    def listen(self, backlog): pass
+    def accept(self): return Connection(), None
+socket.socket = RecorderSocket
+"""
+    result = subprocess.run([sys.executable, "-c", setup + server, json.dumps(record)],
+                            capture_output=True, text=True)
+    if valid:
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout) == record
+    else:
+        assert result.returncode != 0
+        assert "invalid recorder request" in result.stderr
+        assert result.stdout == ""
 
 
 def test_manifest_records_before_launch_and_tears_down_in_reverse(tmp_path: Path) -> None:
@@ -226,6 +407,7 @@ def test_preflight_readiness_does_not_require_inotify(
     import subprocess
     import sys
     trial = _trial(tmp_path, monkeypatch)
+    trial.case = trial.case.model_copy(update={"services": ["db", "redis"]})
     _prepare_without_pod(trial)
     captured: list[str] = []
 
@@ -247,6 +429,7 @@ def test_preflight_readiness_does_not_require_inotify(
     try:
         with pytest.raises(ProbeCaptured):
             trial.run_agent(12345, "trial-token", {"default": "local/test"}, tmp_path / "artifacts")
+        assert (trial.root / "recorders/.services").read_text() == "db\nredis\n"
     finally:
         trial.manifest.cleanup()
     # Exhausted host inotify must not stop an otherwise ready isolated pod.

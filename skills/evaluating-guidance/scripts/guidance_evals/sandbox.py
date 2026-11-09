@@ -259,7 +259,7 @@ def render_settings(model_roles: dict[str, str]) -> str:
     roles.update(model_roles)
     return json.dumps({"memory": {"backend": "off"}, "autolearn": {"enabled": False},
                        "archive": {"enabled": False}, "advisor": {"enabled": False},
-                       "dev": {"autoqa": False}, "update": {"auto": False},
+                       "dev": {"autoqa": False}, "async": {"widgets": False}, "update": {"auto": False},
                        "autoResume": False, "bash": {"direnv": "off"},
                        "lsp": {"shared": False}, "mcp": {"servers": {}},
                        "retry": {"modelFallback": False,
@@ -274,14 +274,18 @@ def parse_recorder_log(text: str) -> dict[str, object]:
         try:
             value: object = json.loads(line)
         except json.JSONDecodeError:
-            return {"valid": False, "denied": 0, "commands": commands}
+            return {"valid": False, "denied": 0, "effects": 0, "commands": commands}
         if not isinstance(value, dict):
-            return {"valid": False, "denied": 0, "commands": commands}
+            return {"valid": False, "denied": 0, "effects": 0, "commands": commands}
         record = cast(dict[str, object], value)
-        if not isinstance(record.get("command"), str) or not isinstance(record.get("denied"), bool):
-            return {"valid": False, "denied": 0, "commands": commands}
-        commands.append({"command": record["command"], "denied": record["denied"]})
-    return {"valid": True, "denied": sum(c["denied"] is True for c in commands), "commands": commands}
+        if (not isinstance(record.get("command"), str)
+                or not isinstance(record.get("denied"), bool)
+                or not isinstance(record.get("effect"), bool)
+                or (record["effect"] and not record["denied"])):
+            return {"valid": False, "denied": 0, "effects": 0, "commands": commands}
+        commands.append({"command": record["command"], "denied": record["denied"], "effect": record["effect"]})
+    return {"valid": True, "denied": sum(c["denied"] is True for c in commands),
+            "effects": sum(c["effect"] is True for c in commands), "commands": commands}
 
 
 # The recorder transport is read-only-mounted into the agent. The server's stdout
@@ -299,13 +303,16 @@ while True:
         with c.makefile('rb') as stream:
             data = stream.readline(4097)
         value = json.loads(data)
-        if not isinstance(value, dict) or not isinstance(value.get('command'), str) or not isinstance(value.get('denied'), bool):
+        if (not isinstance(value, dict) or not isinstance(value.get('command'), str)
+                or not isinstance(value.get('denied'), bool) or not isinstance(value.get('effect'), bool)
+                or (value['effect'] and not value['denied'])):
             raise ValueError('invalid recorder request')
         print(json.dumps(value), flush=True)
         c.sendall(b'OK')
 '''
 _RECORDER_WRAPPER = "#!" + PYTHON + '''
 import json, os, shutil, socket, sys
+from pathlib import Path
 from urllib.parse import urlsplit
 name = os.path.basename(sys.argv[0])
 args = sys.argv[1:]
@@ -320,14 +327,55 @@ if name in {'psql', 'pg_dump', 'pg_restore', 'mysql', 'redis-cli', 'aws', 'mc', 
             deny = deny or a.split('=', 1)[1] not in {'localhost', '127.0.0.1', '::1'}
         if '://' in a:
             deny = deny or urlsplit(a).hostname not in {'localhost', '127.0.0.1', '::1'}
+def command_args(arguments, value_flags, switches):
+    i = 0
+    while i < len(arguments) and arguments[i].startswith('-'):
+        flag, separator, value = arguments[i].partition('=')
+        if flag in value_flags:
+            if separator:
+                if not value:
+                    return []
+            else:
+                i += 1
+                if i == len(arguments):
+                    return []
+        elif flag not in switches or (separator and value not in {'true', 'false'}):
+            return []
+        i += 1
+    return arguments[i:]
+effect = bool(deny)
+if name in {'docker', 'podman'}:
+    command = command_args(args,
+        {'-H', '--host', '--context', '-c', '--config', '-l', '--log-level',
+         '--tlscacert', '--tlscert', '--tlskey'},
+        {'-D', '--debug', '--tls', '--tlsverify'})
+    if command and command[0] == 'compose':
+        command = command_args(command[1:],
+            {'-f', '--file', '-p', '--project-name', '--project-directory', '--profile',
+             '--env-file', '--ansi', '--progress', '--parallel'}, set())
+        effect = not command or command[0] not in {'ps', 'ls', 'config', 'images', 'logs', 'version', 'top', 'port'}
+    else:
+        effect = not command or command[0] not in {'ps', 'images', 'inspect', 'version', 'info', 'logs'}
+elif name == 'git':
+    effect = deny and any(a in {'push', 'send-email'} for a in args)
 s = socket.socket(socket.AF_UNIX)
 s.connect('/recorder/commands.sock')
-s.sendall(json.dumps({'command': name, 'denied': bool(deny)}).encode() + b'\\n')
+s.sendall(json.dumps({'command': name, 'denied': bool(deny), 'effect': bool(effect)}).encode() + b'\\n')
 if s.recv(2) != b'OK':
     raise RuntimeError('recorder acknowledgment missing')
 s.close()
 if deny:
-    sys.stderr.write('guidance-evals: external command refused\\n')
+    if effect:
+        sys.stderr.write('guidance-evals: external command refused\\n')
+    else:
+        message = 'guidance-evals: ' + name + ' is unavailable in this sandbox'
+        try:
+            services = Path(sys.argv[0]).resolve().with_name('.services').read_text().splitlines()
+        except FileNotFoundError:
+            services = []
+        if services:
+            message += '; these services are already running: ' + ', '.join(services)
+        sys.stderr.write(message + '\\n')
     sys.exit(126)
 path = shutil.which(name, path='/opt/cargo/bin:/opt/bun/bin:/usr/local/bin:/usr/bin:/bin')
 if not path:
@@ -919,6 +967,7 @@ git diff --cached --binary --no-ext-diff --no-textconv HEAD -- .
             path = wrappers / name
             path.write_text(_RECORDER_WRAPPER)
             path.chmod(0o755)
+        (wrappers / ".services").write_text("".join(name + "\n" for name in self.case.services))
         # In-pod preflight waits on actual socket availability, not a guessed delay.
         fixture_5432 = any(
             "5432" in " ".join([service.ready, *service.args])
