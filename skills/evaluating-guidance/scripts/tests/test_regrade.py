@@ -37,10 +37,7 @@ def test_run_regrades_changed_question_without_agent_trials(tmp_path: Path) -> N
     question = case_dir / "judge.toml"
     question.write_text('[[question]]\nid="style"\ntext="Is the result clear?"\nevidence=["diff"]\n')
     experiment = tmp_path / "experiment.toml"
-    # This family belongs to the sealed split; use it only for this engine test.
-    from guidance_evals.plan import is_holdout
-    split = "holdout" if is_holdout("family", 30) else "behavior"
-    experiment.write_text(f'name="regrade"\nreplicates=1\nlooks=[1]\nsplit="{split}"\n')
+    experiment.write_text('name="regrade"\nreplicates=1\nlooks=[1]\n')
     project = Project(slug="test", image=Image(containerfile="Containerfile"),
                       agent=Agent(roles={"default": FREE_MODEL}))
     store = Store(tmp_path / "store")

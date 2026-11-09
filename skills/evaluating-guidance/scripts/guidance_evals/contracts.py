@@ -86,7 +86,8 @@ def is_free_model(model: str) -> bool:
 
 class Project(StrictModel):
     slug: Name
-    holdout: int = Field(default=30, ge=0, le=50)
+    # Sealed families matter only when guidance is rewritten against the cases.
+    holdout: int = Field(default=0, ge=0, le=50)
     workdir: str = "/work/repo"
     image: Image
     hide: list[str] = Field(default_factory=lambda: [".omp/evals", ".env*", ".envrc"])

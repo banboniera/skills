@@ -12,26 +12,36 @@ description: >-
 # Evaluating guidance
 
 Guidance stays only if the agent finishes real work more correctly, safely or
-cheaply with it. The engine in `scripts/` measures that; this skill turns the
-results into keep, fix, delete or convert decisions.
+cheaply with it. Decide as much as possible without trials; spend trials only
+where a wrong decision is expensive. The engine in `scripts/` runs the trials.
 
 ## Workflow
 
-1. Set up the project once: [project-setup.md](project-setup.md).
-2. Inventory each target: claims the agent cannot infer from code, tests or
-   compiler; what past sessions show it loaded, ignored or contradicted; whether
-   current docs and web sources confirm its technical claims. Turn enforceable
-   claims into tests or lints. Recurring failures no guidance covers are
-   candidates for new guidance.
-3. Write cases from real failures ([case-authoring.md](case-authoring.md)) and
-   admit them.
-4. Run the layers in order, each only for what is still open: free checks, whole
-   harness, blocks, splits, holdout.
-5. Decide with [decisions.md](decisions.md). For harm, unloaded or still-failing
-   targets, rewrite per [writing-guidance.md](writing-guidance.md); keep only
-   measured wins over the old version on dev cases.
-6. Validate the final harness against the original on the holdout; give the user
-   the report and diff. Change nothing without approval.
+1. **Review without trials.** For each target, list the claims the agent cannot
+   infer from code, tests or compiler errors. Delete duplicated and stale claims.
+   Turn claims a test or lint can enforce into that check; the guidance then goes.
+   Read past sessions for what was loaded, ignored or contradicted. Most
+   decisions end here.
+2. **Choose what to measure.** Only targets whose mistakes are costly (security,
+   tenancy, money, data loss, irreversible operations) or that cost much
+   context, and new guidance written for a recurring failure.
+3. **Size before building.** Set up the project ([project-setup.md](project-setup.md)),
+   write one case, admit it, and run it with a small `--budget`. Cost and time
+   per trial vary a hundredfold between projects. Trials = cases × 2 arms × 3;
+   choose the case count from [what a run can detect](decisions.md#what-a-run-can-detect)
+   and get the budget approved with these numbers.
+4. **Write the cases** ([case-authoring.md](case-authoring.md)), one per failure
+   family, usually 6–10, and admit them.
+5. **Screen: whole harness vs none** (`kind = "whole"`). Per-case results show
+   which tasks depend on guidance; the aggregate decides only large effects.
+6. **Go deeper only where the screen points:** compare `current` with
+   `minus:<target>` when a target's cases fail without guidance or look harmed.
+   Blocks and splits are for many targets sharing cases.
+7. **Decide** with [decisions.md](decisions.md); rewrite per
+   [writing-guidance.md](writing-guidance.md). When rewriting against the cases,
+   seal a holdout first (`holdout` in project.toml) and confirm the final
+   harness on it. Give the user the report and diff; change nothing without
+   approval.
 
 ## Commands
 
@@ -43,29 +53,20 @@ S="$HOME/.cache/guidance-evals/PROJECT"
 uv run --project "$E" guidance-evals status --project . --store "$S"
 uv run --project "$E" guidance-evals smoke --project . --store "$S"
 uv run --project "$E" guidance-evals admit --project . --store "$S"
-uv run --project "$E" guidance-evals triggers SKILL --project . --store "$S" --budget "$BUDGET"
-```
-
-Each experiment TOML sets `name`, `kind`, selectors and a balanced look
-(`replicates=3`, then `6`; `looks=[3,6]`). Use `whole`, `blocks`, `split`
-(with `block`), then `holdout` (with the original `ref`).
-For an unresolved comparison, change `replicates` to `6` and repeat `run`;
-the first three replicates are reused.
-
-```sh
-uv run --project "$E" guidance-evals run whole.toml --project . --store "$S" --budget "$BUDGET"
-uv run --project "$E" guidance-evals run blocks.toml --project . --store "$S" --budget "$BUDGET"
-uv run --project "$E" guidance-evals run split.toml --project . --store "$S" --budget "$BUDGET"
-uv run --project "$E" guidance-evals run holdout.toml --project . --store "$S" --budget "$BUDGET"
+uv run --project "$E" guidance-evals run EXPERIMENT.toml --project . --store "$S" --budget "$BUDGET"
 uv run --project "$E" guidance-evals analyze --project . --store "$S" --experiment NAME
+uv run --project "$E" guidance-evals triggers SKILL --project . --store "$S" --budget "$BUDGET"
 uv run --project "$E" guidance-evals janitor --store "$S"
 ```
 
-Repeat `run` to resume: complete trial IDs are skipped. After judge-only edits,
-`analyze --project .` regrades saved artifacts without agent trials. Omit
-`--project` to read existing grades offline. Execution changes need a new name.
-`run --free` produces smoke-only evidence; `replicates=1, looks=[1]` is allowed
-only with free/local models. Never delete guidance from a smoke report.
+An experiment TOML sets `name`, `kind` (`whole`, `compare`, `blocks`, `split`,
+`holdout`), optional `selectors` (case keys, families or targets) and
+`replicates = 3`. For an unresolved comparison, set `replicates = 6` and repeat
+`run`; the first three replicates are reused.
+
+Repeat `run` to resume: complete trials are skipped. After judge-only edits,
+`analyze --project .` regrades saved artifacts without agent trials. Execution
+changes need a new experiment name. `run --free` is smoke-only evidence.
 
 ## Rules
 
@@ -73,8 +74,7 @@ only with free/local models. Never delete guidance from a smoke report.
 - Paid runs need a budget the user approved; pass it as `--budget`. It counts
   spend already made by the same frozen plan, so a resumed run stays within it.
   A changed case, engine or project starts a new plan that cannot see earlier
-  spend: pass the approval minus what earlier plans spent. Estimate the cost
-  first from a small capped run, because trial cost varies widely by project.
+  spend: pass the approval minus what earlier plans spent.
 - Never select, tune or drop cases because arms did not differ.
 - Never read holdout results while improving guidance.
 - Loads and rule firings are diagnostics, never scores.

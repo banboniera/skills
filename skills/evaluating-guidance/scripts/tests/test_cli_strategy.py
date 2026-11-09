@@ -126,7 +126,7 @@ def test_resolved_relevance_members_control_protection(tmp_path: Path) -> None:
     frozen.experiment.relevant_targets = ["file:AGENTS.md", "rule:positive"]
     frozen.protected = ["rule:positive"]
     assert analyze_plan(db, frozen).action == "keep"
-    assert analyze_plan(db, frozen, target="all").action == "delete-if-costs-context"
+    assert analyze_plan(db, frozen, target="file:AGENTS.md").action == "delete-if-costs-context"
 
 
 def test_legacy_shared_ablations_do_not_mislabel_the_contrast(tmp_path: Path) -> None:

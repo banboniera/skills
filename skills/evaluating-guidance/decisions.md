@@ -34,8 +34,28 @@ its trigger is broken, or the cases do not exercise it (then it costs no context
 on such work).
 
 A check that enforces a target's whole claim justifies deleting it without an
-experiment. After deletions, the holdout comparison against the original catches
-dependencies between targets.
+experiment. After deletions against dev cases, a holdout comparison against the
+original catches dependencies between targets.
+
+An inconclusive whole-harness screen never deletes the harness; it says where to
+look next.
+
+## What a run can detect
+
+Half-width of `bound` for C cases and k trials per arm. A verdict other than
+`inconclusive` needs |Δ| above roughly the half-width plus 0.10.
+
+| C | k = 3 | k = 6 |
+|---|---|---|
+| 6 | 0.49 | 0.35 |
+| 8 | 0.43 | 0.30 |
+| 10 | 0.38 | 0.27 |
+| 20 | 0.27 | 0.19 |
+| 30 | 0.22 | 0.16 |
+
+Small screens detect only guidance that decides most of its tasks; per-case
+results still show which tasks depend on it. Adding cases narrows the bound
+faster than adding replicates.
 
 ## Pitfalls
 

@@ -156,9 +156,9 @@ def test_holdout_is_stable_and_sealed() -> None:
 
 def test_project_holdout_is_planning_only() -> None:
     config = project()
-    assert config.holdout == 30
-    controls = config.model_copy(update={"holdout": 0})
-    assert identity.agent_hash(config, "image", config.agent.roles) == identity.agent_hash(controls, "image", controls.agent.roles)
+    assert config.holdout == 0
+    sealed = config.model_copy(update={"holdout": 30})
+    assert identity.agent_hash(config, "image", config.agent.roles) == identity.agent_hash(sealed, "image", sealed.agent.roles)
     for percent in [-1, 51, 30.5, True]:
         with pytest.raises(ValidationError):
             contracts.Project.model_validate({**config.model_dump(), "holdout": percent})

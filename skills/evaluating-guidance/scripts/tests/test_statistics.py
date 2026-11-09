@@ -164,19 +164,22 @@ def test_only_known_with_arm_zero_exposure_warns(
     assert all("(with: 0/" in warning for warning in warnings)
 
 
-@pytest.mark.parametrize(("replicates", "final_look", "protected", "costs_context", "action"), [
-    (3, 6, (), True, "next-look"),
-    (6, 6, (), True, "delete-if-costs-context"),
-    (6, 6, ("all",), True, "keep"),
-    (6, 6, (), False, "keep"),
-    (3, 3, (), True, "delete-if-costs-context"),
-    (2, 3, (), True, "next-look"),
+@pytest.mark.parametrize(("replicates", "final_look", "target", "protected", "costs_context", "action"), [
+    (3, 6, "rule:x", (), True, "next-look"),
+    (6, 6, "rule:x", (), True, "delete-if-costs-context"),
+    (6, 6, "rule:x", ("rule:x",), True, "keep"),
+    (6, 6, "rule:x", (), False, "keep"),
+    (3, 3, "rule:x", (), True, "delete-if-costs-context"),
+    (2, 3, "rule:x", (), True, "next-look"),
+    # An inconclusive whole-harness screen never deletes the harness.
+    (6, 6, "all", (), True, "keep"),
+    (6, 6, "user-all", (), True, "keep"),
 ])
 def test_unresolved_look_uses_final_policy_only_when_complete(
-    replicates: int, final_look: int, protected: tuple[str, ...],
+    replicates: int, final_look: int, target: str, protected: tuple[str, ...],
     costs_context: bool, action: str,
 ) -> None:
-    result = analyze(panel(6, replicates), "with", "without", final_look=final_look,
+    result = analyze(panel(6, replicates), "with", "without", target=target, final_look=final_look,
                      protected=protected, costs_context=costs_context)
     assert result.verdict == "inconclusive"
     assert result.action == action

@@ -310,9 +310,11 @@ def analyze(observations: Sequence[Observation], with_arm: str, without_arm: str
     if len(members) > 1 and verdict in {"equivalent", "inconclusive"} and any(m.separates for m in member_separation.values()):
         verdict = "split"
         warnings.append("Block members separate in targeted checks; split before any deletion (cancellation safeguard).")
-    protected_target = any(value in protected or
-                           ("user-all" if value.startswith("user-") else "all") in protected
-                           for value in (list(members) or [target]))
+    # The whole harness is never deleted on missing evidence: an inconclusive screen
+    # only says where to look next.
+    protected_target = target in {"all", "user-all"} or any(
+        value in protected or ("user-all" if value.startswith("user-") else "all") in protected
+        for value in (list(members) or [target]))
     action = {"keep": "keep", "benefit": "keep", "equivalent": "delete", "split": "split",
               "harm": "fix-or-delete", "inconclusive": "keep" if protected_target or not costs_context else "delete-if-costs-context"}[verdict]
     # Resolved balanced looks stop immediately. Only unresolved comparisons
