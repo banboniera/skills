@@ -19,8 +19,9 @@ that pinning or fails preflight.
 
 ## 1. Brief
 
-Write the shared `context` once: the user's request verbatim, plus the facts a
-member cannot discover alone (relevant conversation decisions, constraints,
+Write the shared `context` once: the request above exactly as given (omp drops
+the quote marks around quoted arguments; reword nothing else), plus the facts
+a member cannot discover alone (relevant conversation decisions, constraints,
 paths, the repository and its rules that apply). Do not include your own
 answer, leaning or hypothesis: members must not anchor on the chairman.
 
@@ -43,9 +44,10 @@ and stop.
 Label the answers `Answer A`, `Answer B`, `Answer C` in an order you choose at
 random, and remove model names and self-references from their text. Then make
 one `task` call with one review item per member, named `ReviewOpus`,
-`ReviewAstra` and `ReviewSol`, using the same agent as that member. Each
-reviewer receives only the answers it did not write, in a different order for
-each reviewer, and is asked:
+`ReviewAstra` and `ReviewSol`, using the same agent as that member. The shared
+`context` carries only the brief; put the answers in each item's `task`, so a
+reviewer never sees its own answer. Each reviewer receives the answers it did
+not write, in a different order for each reviewer, and is asked:
 
 - for each answer: errors (verified, with evidence), gaps and strengths;
 - which claims it checked itself and the result;
@@ -63,8 +65,8 @@ gets checked by you before you decide. Report to the user:
 2. **Consensus**: what all members agreed on.
 3. **Dissent**: disagreements, how you settled each and on what evidence,
    or why it remains open.
-4. **Rankings**: one table with each answer's label, its model, and the rank
-   each reviewer gave it.
+4. **Rankings**: one table with each answer's label, the model pinned in its
+   member's agent file, and the rank each reviewer gave it.
 5. **Actions**: what you changed or delegated, and what still needs the user.
 
 ## 5. Act
