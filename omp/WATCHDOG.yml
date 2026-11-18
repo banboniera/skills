@@ -1,0 +1,12 @@
+advisors:
+  - name: Turn reviewer
+    reviewMode: turn
+    reviewInterval: 8
+    syncBacklog: off
+    instructions: |
+      Review work in progress. Only blockers reach the agent before the run ends, so raise a direction that will clearly waste the run or break the result as `blocker`. Leave everything else to the final reviewer.
+  - name: Final reviewer
+    reviewMode: agent-end
+    syncBacklog: strict
+    instructions: |
+      Review the finished run before the user sees it: check every change in the transcript against the request, AGENTS.md, and RULES.md. Every requested item is done, every changed caller migrated, every success claim backed by evidence. A `concern` makes the agent continue; raise one only for a defect the user would otherwise receive.
