@@ -1,85 +1,79 @@
 ---
-description:
-  Ask a council of three models (Opus medium, Astra medium, Sol high) to answer
-  independently and review each other anonymously, then chair the result and
-  act on it.
-argument-hint: "<question or task for the council>"
+description: >-
+  Get independent answers from three council models, have them review each
+  other anonymously, then decide and act on the evidence.
+argument-hint: "<question or task>"
 ---
 
 # Council
 
-Convene the council on: $ARGUMENTS
+Request: $ARGUMENTS
 
-If that is empty, ask the user what the council should decide and stop.
+If the request is empty, ask what the council should decide and stop.
 
-You are the chairman. The members are the task agents `council-opus`,
-`council-astra` and `council-sol`; each agent file pins its model and thinking
-level. Never pass `effort` or `model` on their task items: either overrides
-that pinning or fails preflight.
+You chair the council. Its members are the agents `council-opus`,
+`council-astra` and `council-sol`. Their files pin model and thinking level, so
+never set `model` or `effort` on their task items.
 
-## 1. Brief
+## 1. Answer
 
-Write the shared `context` once: the request above exactly as given (omp drops
-the quote marks around quoted arguments; reword nothing else), plus the facts
-a member cannot discover alone (relevant conversation decisions, constraints,
-paths, the repository and its rules that apply). Do not include your own
-answer, leaning or hypothesis: members must not anchor on the chairman.
+Make one `task` call with one item per member and the task
+`Answer the request.` The shared `context` is the brief: the request plus what
+members cannot discover alone (conversation decisions, constraints, paths,
+repository rules). Leave out your own view so members do not anchor on it.
 
-## 2. Answer independently
+Retry a failed member once. With fewer than two answers, report the failure and
+stop. Use the agent IDs the call returns; omp renames duplicate names.
 
-One `task` call with three items, one per member, named `CouncilOpus`,
-`CouncilAstra` and `CouncilSol`. Each item asks for:
+## 2. Review
 
-- the answer or recommendation, with the evidence behind each claim;
-- alternatives considered and why they lose;
-- confidence (high, medium or low) and what evidence would change the answer.
+Build the review call in Python eval, so reviewers get each answer byte for
+byte; retyped answers lost content in testing. Without `:raw`, `read` cuts long
+lines and its notice names the author.
 
-Members inspect and research only in this stage. Wait for all three. Retry a
-failed member once; if it fails again, continue with the remaining members
-and report the gap. Fewer than two answers is no council: report what failed
-and stop.
+```python
+import random
+BRIEF = "..."  # the stage-1 context
+ids = {"council-opus": "...", "council-astra": "...", "council-sol": "..."}  # members that answered → returned IDs
+order = random.sample(list(ids), len(ids))
+label = {m: "ABC"[i] for i, m in enumerate(order)}
+text = {m: read(f"agent://{ids[m]}:raw") for m in order}
+tasks = []
+for i, m in enumerate(order):
+    others = [order[(i + k) % len(order)] for k in range(1, len(order))]
+    body = "\n\n".join(f"## Answer {label[o]}\n\n{text[o]}" for o in others)
+    tasks.append({"agent": m, "name": "Review" + m.split("-")[1].title(),
+                  "task": "Review these answers.\n\n" + body,
+                  "solutionSpace": "review of peer answers"})
+print(label)
+await tool.task({"context": BRIEF, "tasks": tasks})
+```
 
-## 3. Review anonymously
+Each reviewer gets only the other answers, and each answer appears once in
+every position.
 
-Label the answers `Answer A`, `Answer B`, `Answer C` in an order you choose at
-random, and remove model names and self-references from their text. Then make
-one `task` call with one review item per member, named `ReviewOpus`,
-`ReviewAstra` and `ReviewSol`, using the same agent as that member. The shared
-`context` carries only the brief; put the answers in each item's `task`, so a
-reviewer never sees its own answer. Each reviewer receives the answers it did
-not write, in a different order for each reviewer, and is asked:
+## 3. Decide
 
-- for each answer: errors (verified, with evidence), gaps and strengths;
-- which claims it checked itself and the result;
-- a ranking, best first, with the deciding reason.
+Reviews are evidence, not votes. Check each reported error against the original
+answer, and verify yourself any disagreement that would change the decision. If
+reviews are missing, verify the decisive claims yourself.
 
-Answers from a member that failed in stage 2 are not reviewed.
+## 4. Act
 
-## 4. Chair
+When the request calls for changes:
 
-Settle the outcome yourself. Rankings are evidence, not votes: a verified
-error outweighs any majority, and an unverified disagreement that matters
-gets checked by you before you decide. Report to the user:
+- **Obvious** (one correct change, settled by evidence, within the request):
+  make it, or send it with `write agent://<id>` to the member whose answer
+  covered it, since that agent keeps its context. One owner per file; verify
+  the result.
+- **Otherwise** (a product or design choice, conflicting evidence, a breaking,
+  cross-repository or irreversible change): use `ask` with the options, their
+  evidence and your recommendation first.
 
-1. **Decision**: the council's answer or recommendation.
-2. **Consensus**: what all members agreed on.
-3. **Dissent**: disagreements, how you settled each and on what evidence,
-   or why it remains open.
-4. **Rankings**: one table with each answer's label, the model pinned in its
-   member's agent file, and the rank each reviewer gave it.
-5. **Actions**: what you changed or delegated, and what still needs the user.
+Never commit unless the user asked.
 
-## 5. Act
+## 5. Report
 
-Act on the decision when the request calls for changes:
-
-- **Obvious:** one correct change, settled by evidence and within the request.
-  Make it yourself, or delegate it with `write agent://<member>` to the
-  stage-2 member whose answer covered it; that agent already has the context.
-  Give one owner per file, and verify the result before reporting it.
-- **Uncertain:** a product or design choice, conflicting evidence, a breaking
-  or cross-repository change, or irreversible data effects. Do not act:
-  ask the user with the `ask` tool, presenting the options with evidence and
-  your recommendation first.
-
-Never commit unless the user asked for it.
+Answer in the format the request asks for. Then add only what the user needs:
+dissent that changed or qualifies the decision, missing members or reviews, and
+changes made or awaiting the user. Omit agreement and settled side points.
