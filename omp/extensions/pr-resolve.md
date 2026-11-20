@@ -43,10 +43,12 @@ counts as fixed.
   separately from the fix it suggests: an unsuitable fix does not make a real
   problem false.
 - **Needs the user:** deciding or fixing it genuinely requires something you
-  cannot obtain here, such as credentials, production data, a change in another
-  repo, or a product or design decision the available context cannot settle. A
-  new dependency, a migration, or a larger change is not a reason by itself:
-  make the fix when you have what it needs. Never invent what is missing.
+  cannot obtain here: credentials, production data, a change in another repo,
+  approval to break an external contract or irreversibly change data, or a
+  product or design decision the available context cannot settle. A new
+  dependency, a reversible migration, or a larger change is not a reason by
+  itself: make the fix when you have what it needs. Never invent what is
+  missing.
 
 For each failed check, reproduce it locally with the same command CI ran; the
 workflow under `.github/workflows/` shows it. It is true when it reproduces, and
@@ -61,11 +63,10 @@ the one that fits the code and say why.
 ## Fix the true ones
 
 Run the project's own checks before your first change and keep the results. Fix
-each true item at its cause, for the best end state rather than the smallest
-diff, most severe first. A fix removes the wrong behavior callers see; logging
-or commenting on it is not a fix. When the cause is in shared code, fix it
-there rather than where
-the reviewer happened to look. For a behavior bug, write the test first and
+each true item at its cause, most severe first. A fix removes the wrong behavior
+callers see; logging or commenting on it is not a fix. When the cause is in
+shared code, fix it there rather than where the reviewer happened to look. For
+a behavior bug, write the test first and
 watch it fail, then fix it and watch it pass; correct any existing test that
 asserts the buggy behavior. Fix a failing check in the code, not in the CI
 config, unless the config itself is wrong; never re-run a job, and never skip,

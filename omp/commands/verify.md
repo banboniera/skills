@@ -107,9 +107,8 @@ Continue with the other fixes.
 
 - Fix every proven bug needing no approval and every approved fix. Approved
   fixes may change other repos under these same rules.
-- Fix the root cause for the best end state, not the smallest diff. Fix shared
-  code rather than patching one caller; update all affected callers and tests
-  that assert the buggy behavior.
+- Fix shared code rather than patching one caller; update all affected callers
+  and tests that assert the buggy behavior.
 - A fix is complete when its regression test passes or its probe stops showing
   the defect. If the test never failed or only a probe exists, also exercise
   the fix as a user would and retain public-interface test coverage.

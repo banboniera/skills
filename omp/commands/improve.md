@@ -101,9 +101,6 @@ improvements anyway.
 
 - Implement every ungated improvement and approved approach. Approved changes
   to other repos follow these same rules.
-- Fix root causes. Restructure when the design is the obstacle, follow project
-  patterns, and update affected callers. Aim for the best end state, not the
-  smallest diff.
 - Apply the same bar to discoveries during implementation. Implement ungated
   ones; collect newly gated ones and, after the first pass, ask about them the
   same way, then implement the approved ones.

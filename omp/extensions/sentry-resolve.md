@@ -49,21 +49,21 @@ one fix closes them all.
   or an outage of a service the code already handles well. An unhandled failure
   of a service the code calls is a bug.
 - **Needs the user:** deciding or fixing it genuinely requires something you
-  cannot obtain here, such as production data, credentials, infrastructure, a
-  change in another repository, or a product or design decision the available
-  context cannot settle. A new dependency, a migration, or a larger change is
-  not a reason by itself: make the fix when you have what it needs. Never invent
-  what is missing.
+  cannot obtain here: production data, credentials, infrastructure, a change in
+  another repository, approval to break an external contract or irreversibly
+  change data, or a product or design decision the available context cannot
+  settle. A new dependency, a reversible migration, or a larger change is not a
+  reason by itself: make the fix when you have what it needs. Never invent what
+  is missing.
 
 ## Fix the bugs
 
 Run the project's own checks before your first change and keep the results. Fix
 the bugs that affect the most users first, then the most events. Fix each at its
-cause, for the best end state rather than the smallest diff, and apply it
-wherever the same pattern fails the same way. A fix makes the code behave
-correctly for the input that failed; catching, logging, or no longer reporting
-the error while users
-still see the failure is not a fix. Write the test first and watch it fail, then
+cause, and apply the fix wherever the same pattern fails the same way. A fix
+makes the code behave correctly for the input that failed; catching, logging, or
+no longer reporting the error while users still see the failure is not a fix.
+Write the test first and watch it fail, then
 fix it and watch it pass; correct any existing test that asserts the failing
 behavior. Change nothing the issues don't need; mention other problems you
 notice instead.

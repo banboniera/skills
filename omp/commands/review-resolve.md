@@ -28,7 +28,7 @@ Resolve duplicates once with one verdict and identify the duplicate in both repo
 
 ## Fix true findings
 
-Fix the most severe first, at the root cause and every occurrence of that defect in this repo. Fix shared code rather than compensating in a caller. Aim for the best end state, not the smallest diff. Change nothing outside the review; report unrelated problems instead.
+Fix the most severe first, at the root cause and every occurrence of that defect in this repo. Fix shared code rather than compensating in a caller. Change nothing outside the review; report unrelated problems instead.
 
 Preserve the user's uncommitted work. Never stash, reset, or discard it.
 
