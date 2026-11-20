@@ -2,7 +2,7 @@
 description: "Never bypass git hooks, signing, or force-push"
 condition:
   - "--no-verify"
-  - '\bgit\s+commit\b[^\n|;&]*\s-[a-zA-Z]*n'
+  - '\bgit\s+commit\b(?:"[^"\n]*"|''[^''\n]*''|(?!\\n)[^\n|;&"''])*?\s-[aceimopqsStuvzCF]*n[aceimopqsStuvzCF]*(?=[\s"\\]|$)'
   - '\bHUSKY=0'
   - "--no-gpg-sign"
   - '\bpush\b[^\n|;&]*\s(-f\b|--force(?=[\s"|;&\\]))'

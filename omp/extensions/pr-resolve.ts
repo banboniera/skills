@@ -157,7 +157,7 @@ export async function fetchPrData(exec: Exec, target: PrTarget): Promise<PrData>
     comments: withBody(view.comments ?? []),
     reviews: withBody(view.reviews ?? []),
     threads,
-    threadsTruncated: Boolean(reviewThreads?.pageInfo?.hasNextPage),
+    threadsTruncated: Boolean(reviewThreads.pageInfo?.hasNextPage),
     viewer: threadData?.viewer?.login ?? "",
     ...checks,
   }
@@ -196,7 +196,7 @@ export function stripBotNoise(body: string): string {
   while ((match = tag.exec(text))) {
     if (!match[0].startsWith("</")) {
       starts.push(match.index)
-    } else if (starts.length) {
+    } else {
       const start = starts.pop()
       if (start === undefined) continue
       const block = text.slice(start, tag.lastIndex)
@@ -248,7 +248,7 @@ export function trimLog(log: string): string {
     for (const i of markers) {
       // Context starts at the failing step's header, so earlier steps that passed stay out.
       const step = body.findLastIndex((line, j) => j <= i && line.startsWith("##[group]Run "))
-      for (let j = Math.max(0, step === -1 ? i - 40 : step, i - 40); j <= Math.min(body.length - 1, i + 3); j++) {
+      for (let j = Math.max(0, step, i - 40); j <= Math.min(body.length - 1, i + 3); j++) {
         if (j > i && body[j].startsWith("##[group]Run ")) break // the next step
         keep.add(j)
       }
