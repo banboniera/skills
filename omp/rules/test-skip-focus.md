@@ -1,16 +1,17 @@
 ---
 description: "Never skip, focus, or xfail tests to get a green run"
 condition:
-  - '\b(it|test|describe|bench|suite)\.(skip|only|todo|fixme|fails|skipIf|runIf)\b'
-  - '\b[xf](it|describe|test)\('
-  - '@(unittest\.)?skip(If|Unless)?\b'
+  - '\b(it|test|describe|bench|suite)\.(skip|only|todo|fixme|fails)\b'
+  - '(?<![\w.])(?<!function )[xf](it|describe|test)\('
+  - '(?m)^[ \t]*@(unittest\.)?skip\b'
   - '\.skipTest\('
-  - 'pytest\.mark\.(skip|skipif|xfail)'
+  - 'pytest\.mark\.(skip|xfail)\b'
   - 'pytest\.(skip|xfail)\('
 scope:
   "tool:edit(**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,astro}),
   tool:write(**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,astro}), tool:edit(**/*.py),
   tool:write(**/*.py)"
+interruptMode: never
 ---
 
 # Test skip focus

@@ -61,9 +61,10 @@ the one that fits the code and say why.
 ## Fix the true ones
 
 Run the project's own checks before your first change and keep the results. Fix
-each true item at its cause with the smallest change that does it, most severe
-first. A fix removes the wrong behavior callers see; logging or commenting on it
-is not a fix. When the cause is in shared code, fix it there rather than where
+each true item at its cause, for the best end state rather than the smallest
+diff, most severe first. A fix removes the wrong behavior callers see; logging
+or commenting on it is not a fix. When the cause is in shared code, fix it
+there rather than where
 the reviewer happened to look. For a behavior bug, write the test first and
 watch it fail, then fix it and watch it pass; correct any existing test that
 asserts the buggy behavior. Fix a failing check in the code, not in the CI
@@ -112,7 +113,7 @@ still fix it if it is true.
   verdict:
 
   ```bash
-  rtk gh api graphql -f id=THREAD_ID -f query='mutation($id:ID!){
+  gh api graphql -f id=THREAD_ID -f query='mutation($id:ID!){
     resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}'
   ```
 
@@ -121,17 +122,17 @@ still fix it if it is true.
 - **False, needs-the-user, or unresolved thread:** reply to the comment id shown
   for the thread, and leave the thread open so the reviewer can resolve it after
   reading:
-  `rtk gh api repos/OWNER/REPO/pulls/NUMBER/comments/COMMENT_ID/replies -F body=@REPLY_FILE`
+  `gh api repos/OWNER/REPO/pulls/NUMBER/comments/COMMENT_ID/replies -F body=@REPLY_FILE`
   For a false comment, give the technical reason and cite the file:line, doc, or
   test. For one that needs the user or is unresolved, say what blocks it and why
   it cannot be settled here.
 - **AI reviewer thread:** also react to the comment id shown for the thread, 👍
   (`+1`) when it was true, fixed or not, and 👎 (`-1`) when it was false; none
   when it needs the user:
-  `rtk gh api repos/OWNER/REPO/pulls/comments/COMMENT_ID/reactions -f content=+1`
+  `gh api repos/OWNER/REPO/pulls/comments/COMMENT_ID/reactions -f content=+1`
 - **Review summary or top-level comment:** it cannot be resolved. Reply to a
   false, needs-the-user, or unresolved one from an AI reviewer or a person with
-  `rtk gh pr comment NUMBER -R OWNER/REPO --body-file REPLY_FILE`; a fixed one
+  `gh pr comment NUMBER -R OWNER/REPO --body-file REPLY_FILE`; a fixed one
   needs no reply.
 
 ## Report

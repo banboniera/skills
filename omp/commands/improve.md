@@ -83,19 +83,19 @@ Ask only for an improvement that:
   deletes data that this work cannot restore.
 
 If none needs approval, implement immediately. Otherwise, before any edits,
-make one `ask` call. For each gated improvement, provide a single-select
-question with:
+make one `ask` call: one form with a radio group per gated improvement. Each
+group gives:
 
 - File:line, concrete scenario, and impact.
-- Reasonable approaches, recommendation first and marked `recommended`, then
-  "Leave unchanged".
-- An option description stating the change and what breaks, which repos change,
-  or which data changes.
+- The reasonable approaches, recommendation first and labelled as recommended,
+  then "Leave unchanged". Each option states the change and what breaks, which
+  repos change, or which data changes.
 
-An explicit selection or chat approval authorizes only that approach.
-"Leave unchanged", timeout auto-selection, "Chat about this", unanswered
-questions, or unavailable asking leave that improvement unmade. Implement the
-independent improvements anyway.
+Preselect nothing. Only an approach the user selected and submitted, or
+approved in chat, is authorized, and only that approach. "Leave unchanged", an
+unanswered group, cancellation, a result that says the form timed out, or no
+way to ask leaves that improvement unmade. Implement the independent
+improvements anyway.
 
 ## Implement
 

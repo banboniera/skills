@@ -5,8 +5,9 @@ condition:
   - '\bgit\s+commit\b[^\n|;&]*\s-[a-zA-Z]*n'
   - '\bHUSKY=0'
   - "--no-gpg-sign"
-  - '\bpush\b[^\n|;&]*\s(-f\b|--force(?!-with-lease))'
+  - '\bpush\b[^\n|;&]*\s(-f\b|--force(?=[\s"|;&\\]))'
 scope: "tool:bash"
+repeatMode: always
 ---
 
 # Hook bypass

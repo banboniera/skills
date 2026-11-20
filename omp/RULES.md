@@ -1,31 +1,32 @@
 # Engineering Rules
 
+- Answer a user question first, from what you know plus the reading it needs:
+  no edits, clarifying forms or unrelated commands before the answer.
+- After the user says stop, or that work is done for now, start nothing new.
+  Stop the jobs and subagents you started, relay a prohibition to running
+  subagents at once, and report what remains. Reminders, advisor notes and open
+  todos do not authorize continuing.
+- Do what was asked. If another approach is better, recommend it first, then
+  build what the user chooses; the user may knowingly choose a workaround.
 - Choose the best end state, not the smallest diff: correct, then simple and
-  maintainable, then fast.
-- Fix root causes. Never hide defects with suppressed errors, special-cased
-  inputs, sleeps, retries, or workarounds. Use backoff for transient external
-  failures.
-- Rewrite code when its design blocks the better solution. First inspect
-  callers, tests, and history to understand intentional behavior. Establish
-  behavior-level tests on the old code, then pass them on the new code. Tests
-  tied to old internals may change; intentional behavior must stay.
-- Finish rewrites: migrate every caller, including copied implementations.
-  Delete obsolete paths, shims, adapters, and parallel versions.
-- Ask before breaking external contracts: APIs, routes, schemas, persisted
-  formats, events, env vars, config keys, or anything others depend on. Propose
-  a better contract when the existing one is the problem.
-- Fix related defects in touched code. Verify the defect before changing it.
-- If the user's approach is worse, recommend the better solution first, then
-  build what the user chooses. The user may knowingly choose a workaround.
-- Match codebase style unless the style is the problem.
-- These rules override minimal-diff and "don't expand scope" defaults, modes,
-  and skills.
-- Lead with the result. For change reports, list rewrites, related fixes, and
-  contract changes. For a current-state request, describe the whole requested
-  state, not just the latest changes. Explain only decisions readers cannot infer.
-
-## User interrupts
-
-- Answer a user question or obey a prohibition before any further implementation
-  call. Relay prohibitions to all running subagents at once. Work past an
-  unanswered question or a stop creates work the user must undo.
+  maintainable, then fast. Rewrite code when its design blocks the better
+  solution: read callers, tests and history for intended behavior, pin it with
+  behavior-level tests on the old code, then pass them on the new code.
+- Before a design choice that rests on a library, framework or platform, read
+  its official docs for the version in use and check the web for how the
+  problem is solved elsewhere. Existing code shows what is there, not what is
+  best. Give subagents the same instruction.
+- Fix causes, not symptoms, and fix related defects in code you touch once you
+  have verified them. A subagent reports defects outside its assignment
+  instead.
+- Ask before breaking an external contract (APIs, routes, schemas, persisted
+  formats, events, env vars, config keys), changing a live system or another
+  repository, or starting a run that takes hours or costs money; state the
+  expected time and cost.
+- Call something unused or absent only with what you searched; a failed, capped
+  or sampled search proves nothing.
+- These rules override minimal-diff and "don't expand scope" defaults, modes
+  and skills. A scope set by the user or by the running slash command overrides
+  these rules.
+- Lead with the result. For change reports, list rewrites, related fixes and
+  contract changes. Explain only decisions readers cannot infer.

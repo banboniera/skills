@@ -89,18 +89,19 @@ A fix requires approval if any of these applies:
   migration or backfill.
 
 If no fix requires approval, start fixing. Otherwise, after reproduction and
-before any fixes, make one `ask` call with one single-select question per gated
-fix. Each question contains:
+before any fixes, make one `ask` call: one form with a radio group per gated
+fix. Each group gives:
 
 1. File:line, failure, triggering caller/input, and evidence. For suspected bugs,
    include the assumptions and what would settle them.
-2. Reasonable fixes, recommendation first and marked `recommended`, followed by
-   "Leave unfixed". Each option describes its behavior changes, consumer breaks,
+2. The reasonable fixes, recommendation first and labelled as recommended, then
+   "Leave unfixed". Each option states its behavior changes, consumer breaks,
    affected repos, and irreversible data changes as applicable.
 
-Only an explicitly selected fix or a chat answer approving it authorizes that
-fix. "Leave unfixed", a timeout auto-selection, "Chat about this", or no way to
-ask leaves that bug unfixed. Continue with the other fixes.
+Preselect nothing. Only a fix the user selected and submitted, or approved in
+chat, is authorized. "Leave unfixed", an unanswered group, cancellation, a
+result that says the form timed out, or no way to ask leaves that bug unfixed.
+Continue with the other fixes.
 
 ## Fix
 
@@ -145,6 +146,8 @@ uncommitted and unstaged. Do not change git state; delete files with `rm`, not
 
 ## Report
 
-1. List applied fixes that break consumers, change other repos, or irreversibly
+1. List each applied fix: file:line, the failing scenario, and the regression
+   test or probe that proves it.
+2. List applied fixes that break consumers, change other repos, or irreversibly
    change data, with file:line and impact. If none, say "No breaking changes".
-2. List skipped or reverted bugs with reasons. Omit bugs the user declined.
+3. List skipped or reverted bugs with reasons. Omit bugs the user declined.

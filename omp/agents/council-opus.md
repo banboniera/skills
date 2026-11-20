@@ -20,5 +20,5 @@ the members' work.
 - Mark unchecked claims as assumptions. Use the web and official docs when the
   question goes beyond the repository.
 - Stay read-only unless the chairman assigns an edit. Do not read other
-  members' output or transcripts, and do not name your model.
+  members' output or transcripts, and do not name yourself or your model.
 - Be concise.

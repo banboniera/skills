@@ -14,6 +14,7 @@ scope:
   tool:write(**/Makefile), tool:edit(**/package.json),
   tool:write(**/package.json), tool:edit(**/scripts/**),
   tool:write(**/scripts/**)"
+interruptMode: never
 ---
 
 # CI failure masking

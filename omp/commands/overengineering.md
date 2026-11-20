@@ -33,6 +33,22 @@ Focus (narrows the review, never relaxes these rules): $@[2]
   file against every category below; finish all unchecked entries before
   reporting completion. Sampling is not a full review.
 
+## Split and repeat
+
+For a target of more than a few files:
+
+1. Split the inventory into slices by module.
+2. In one `task` call, give each slice to a read-only subagent, with this
+   command's rules in the shared context. Each returns candidates with the
+   evidence below; none edits.
+3. After any approval, make the changes yourself, or give each slice to one
+   subagent that owns its files.
+4. Repeat on the files that changed and on any slice not yet reviewed, until a
+   round finds nothing that qualifies.
+
+A single file or a small target needs no subagents; still repeat until a round
+finds nothing.
+
 ## What to look for
 
 1. **Speculative generality:** interfaces, abstract classes, factories,
@@ -168,7 +184,7 @@ A simplification needs approval if it:
   only the user knows whether the business expects it.
 
 If none does, start implementing. Otherwise, before changing anything, make one
-`ask` call with a single-select question per such simplification. Each question
+`ask` call: one form with a radio group per such simplification. Each group
 states:
 
 - file:line, the evidence, and the current shape;
@@ -177,16 +193,17 @@ states:
 - for caches, retries, pools, and rate limits, that the repo can't show
   production load, and the metric that would settle it.
 
-Offer reasonable simpler shapes, your recommendation first and marked
-`recommended`, then "Leave unchanged". Each description states the flexibility
-given up, the cost of restoring it, and the consumers, runtime behavior, repos,
-or data it changes.
+List the reasonable simpler shapes, your recommendation first and labelled as
+recommended, then "Leave unchanged". Each option states the flexibility given
+up, the cost of restoring it, and the consumers, runtime behavior, repos, or
+data it changes. Preselect nothing.
 
-A selected shape, or a chat answer approving one, approves only that shape and
-its stated outcomes. If the patch changes a promised output or failure result,
-get approval for that different shape before implementing it.
-"Leave unchanged", a timeout auto-selection, "Chat about this", or no way to ask
-leaves the simplification unmade; implement the rest.
+A shape the user selected and submitted, or a chat answer approving one,
+approves only that shape and its stated outcomes. If the patch changes a
+promised output or failure result, get approval for that different shape before
+implementing it. "Leave unchanged", an unanswered group, cancellation, a result
+that says the form timed out, or no way to ask leaves the simplification
+unmade; implement the rest.
 
 ## Implement
 

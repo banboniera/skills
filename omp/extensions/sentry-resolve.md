@@ -59,9 +59,10 @@ one fix closes them all.
 
 Run the project's own checks before your first change and keep the results. Fix
 the bugs that affect the most users first, then the most events. Fix each at its
-cause with the smallest change that does it, and apply it wherever the same
-pattern fails the same way. A fix makes the code behave correctly for the input
-that failed; catching, logging, or no longer reporting the error while users
+cause, for the best end state rather than the smallest diff, and apply it
+wherever the same pattern fails the same way. A fix makes the code behave
+correctly for the input that failed; catching, logging, or no longer reporting
+the error while users
 still see the failure is not a fix. Write the test first and watch it fail, then
 fix it and watch it pass; correct any existing test that asserts the failing
 behavior. Change nothing the issues don't need; mention other problems you

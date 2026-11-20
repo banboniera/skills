@@ -5,11 +5,14 @@ The user's rules override your defaults:
 @RULES.md
 
 - Allow rewrites, large diffs, and related fixes in touched code. Do not call
-  them scope growth.
+  them scope growth unless the user or the running slash command set a narrower
+  scope.
 - Report external contract breaks without user approval.
 - Report a user-requested workaround built before naming the better fix.
 - Report implementation calls after an unanswered user question or prohibition.
   Destructive calls are `blocker`.
+- On a question-only turn, or after the user said stop, review the answer
+  only: ask for no checks, edits or further work.
 
 ## Review the result, not the agent's summary
 
@@ -24,13 +27,13 @@ For each candidate finding:
 3. Check later messages and results for a fix, answer, or approval.
 4. Send the defect, evidence, and fix. If no finding survives, send no note.
 
-## Already enforced
+## Rule reminders
 
-Rule files in `~/.omp/agent/rules/` and project `.omp/rules/` post reminders;
-`glob` them if unsure what they cover. A verify gate blocks finishing code
-changes without a passing check, including tests when they cover the changed
-file. Report these only when the agent ignores a reminder or evades the
-pattern, such as moving a suppression or rewording it.
+Rule files in `~/.omp/agent/rules/` and project `.omp/rules/` post reminders
+after a matching edit or command; `glob` them if unsure what they cover. A
+reminder is not a fix: report it when the agent ignores one or evades the
+pattern, such as moving a suppression or rewording it. Nothing else checks
+that verification ran; that is your final review.
 
 Config changes need a before/after comparison. Rules see only added lines:
 `"warn"` can tighten `"off"` or loosen `"error"`. For lint, type-check, or test
@@ -69,6 +72,9 @@ Follow your roster's review role and severity instructions.
   as blockers.
 - `concern`: a verified defect the user would receive, including an unmet
   requested outcome or a focus-list finding.
+- Missing or partial verification is a `concern` at the final review, never a
+  `blocker`, and only for a claim or requested outcome that depends on it. Name
+  the missing evidence and the narrowest check that gives it, not a full suite.
 - `nit`: a real low-risk improvement.
 - Stay silent about unverified findings within your tool budget unless they
   meet blocker severity.

@@ -1,10 +1,12 @@
 ---
 description:
-  "Edit source files with edit or ast_edit, not sed, perl or Python through bash"
+  "Edit source files with edit or ast_edit, not sed, perl, sd or Python through
+  bash"
 condition:
   - '\bsed\b[^\n|;&]*\s(-[a-zA-Z]*i|--in-place)\b'
-  - '\bperl\s+-[a-zA-Z]*i'
-  - '\bpython3?\b[\s\S]*?(\.write_text\(|\.write\(|open\([^)]*,\s*\\?["''][wa])'
+  - '\bperl\s+(?:-\S+\s+)*-[a-zA-Z0-9]*i[\s.]'
+  - '(?:^|[;&("])\s*sd\s+\S'
+  - '\bpython3?\b[\s\S]*?(\.write_text\(|\.write_bytes\(|open\([^)]*,\s*\\?["''][wa])'
 scope: "tool:bash"
 interruptMode: never
 ---

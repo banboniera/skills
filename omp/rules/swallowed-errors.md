@@ -23,17 +23,21 @@ scope:
   "tool:edit(**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,astro}),
   tool:write(**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,astro}), tool:edit(**/*.py),
   tool:write(**/*.py)"
+interruptMode: never
 ---
 
 # Swallowed errors
 
 Swallowing an error turns a loud, local failure into silent wrong behavior
-somewhere else.
+somewhere else. Check the handler you just wrote.
 
 - Catch only the specific exception type you expect, at the level that can act
   on it: show the user feedback, return a typed fallback, retry a
   known-transient operation, or translate it to a domain error.
-- Unexpected errors must propagate (Sentry and the API error handler report
-  them). Do not log-and-continue.
+- Unexpected errors must propagate to whatever reports them. Do not
+  log-and-continue.
+- Not swallowing: a handler that re-raises, wraps (`raise X from e`), or hands
+  the failure to the caller.
 - If ignoring a specific failure is correct, catch that exact type and write why
   on the line.
+- A temporary probe or mutation you revert before finishing needs no change.

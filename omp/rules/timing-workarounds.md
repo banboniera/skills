@@ -13,12 +13,13 @@ scope:
   "tool:edit(**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,astro}),
   tool:write(**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,astro}), tool:edit(**/*.py),
   tool:write(**/*.py)"
+interruptMode: never
 ---
 
 # Timing workarounds
 
 Sleeping or deferring "until it works" hides a race; it fails again under load
-or on another machine.
+or on another machine. Check the delay you just wrote.
 
 - Find the event or state the code is really waiting for and wait on that: a
   signal/slot, a Promise, a query's `isSuccess`, a DB commit
@@ -26,6 +27,7 @@ or on another machine.
 - Qt: never `QApplication.processEvents()` to keep the UI alive; it re-enters
   the event loop. Move blocking work to a `QThread`/`QThreadPool` worker and
   report back with signals.
-- A delay is legitimate only for (a) a protocol or device spec requirement (cite
-  it), or (b) a polling/backoff interval in a background thread or task, using a
-  named constant. Never on the Qt GUI thread or in a request path.
+- A delay is legitimate for (a) a protocol or device spec requirement (cite
+  it), (b) a polling/backoff interval in a background thread or task, using a
+  named constant, or (c) a temporary probe you revert before finishing. Never
+  on the Qt GUI thread or in a request path.

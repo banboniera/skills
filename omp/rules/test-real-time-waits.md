@@ -16,12 +16,13 @@ scope:
   tool:edit(**/tests/**/*.py), tool:write(**/tests/**/*.py),
   tool:edit(**/test_*.py), tool:write(**/test_*.py), tool:edit(**/*_test.py),
   tool:write(**/*_test.py)"
+interruptMode: never
 ---
 
 # Test real time waits
 
 Fixed waits make tests slow and flaky: they pass on a fast machine and fail in
-CI.
+CI. Check the wait you just wrote.
 
 - Playwright: use web-first assertions (`await expect(locator).toBeVisible()`,
   `toHaveURL`, `expect.poll`) and locator auto-waiting; never
@@ -32,3 +33,5 @@ CI.
   or patch `django.utils.timezone.now`; for Celery and `on_commit` use
   `captureOnCommitCallbacks(execute=True)`; drive hardware through the
   simulator, not delays.
+- Fine as written: a timer that runs under fake time, and a temporary probe you
+  revert before finishing.

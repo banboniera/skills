@@ -34,11 +34,12 @@ Asking nothing is normal. Turn everything else into a stated assumption the
 user can correct later. Don't ask checklist questions (non-goals, compliance,
 growth plans) unless the verdict turns on them.
 
-When you do ask, use one `ask` call. Give each question concrete options (named
-choices, or ranges for numbers), each with a `description` of how it changes the
-verdict, and mark your best guess `recommended`. Use `multi: true` when several
-answers can hold. Don't add an "Other" option; the tool adds one. Without an
-`ask` tool, ask the same questions as a short numbered list with your guesses.
+When you do ask, use one `ask` call: one form with a radio group per question,
+or checkboxes when several answers can hold. Give concrete options (named
+choices, or ranges for numbers), each saying how it changes the verdict, with
+your best guess first and labelled as recommended. Don't add an "Other" option;
+the form adds one. Without an `ask` tool, ask the same questions as a short
+numbered list with your guesses.
 
 Ask again later only when an answer raises another question that passes the
 same test. If answers contradict each other under every reading, name the
@@ -127,11 +128,11 @@ No migration plan, timeline, or effort estimate unless asked.
 1. Save the proposal to `docs/first-principles/YYYY-MM-DD-<topic>.md` in the
    repository root, or ask where to save it when there is no repository.
    Don't commit it.
-2. Ask with `ask` whether to approve it, with "Change something" and "Approve"
-   options; the user describes changes in the free-text answer. Apply changes
-   to both the reply and the file. Only an explicit "Approve" counts: a timeout
-   auto-selection, cancellation, "Chat about this", or no answer leaves it
-   unapproved.
-3. Once approved, invoke `superpowers:writing-plans` with the file path. If
-   that skill is unavailable, say so and ask how to proceed. Don't implement
-   before a plan exists.
+2. Ask with `ask` whether to approve it: one radio group with "Approve" and
+   "Change something", nothing preselected, and a text field for the changes.
+   Apply changes to both the reply and the file. Only a submitted "Approve"
+   counts: cancellation, a result that says the form timed out, or no answer
+   leaves it unapproved.
+3. Once approved, read `skill://writing-plans` and follow it with the file
+   path. If that skill is unavailable, say so and ask how to proceed. Don't
+   implement before a plan exists.

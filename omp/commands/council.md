@@ -23,7 +23,9 @@ members cannot discover alone (conversation decisions, constraints, paths,
 repository rules). Leave out your own view so members do not anchor on it.
 
 Retry a failed member once. With fewer than two answers, report the failure and
-stop. Use the agent IDs the call returns; omp renames duplicate names.
+stop. Use the agent IDs the call returns; omp renames duplicate names. Send a
+member nothing while it answers: its reply to you becomes its latest output,
+and `agent://<id>:raw` then returns that reply instead of the answer.
 
 ## 2. Review
 

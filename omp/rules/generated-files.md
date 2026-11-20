@@ -10,6 +10,8 @@ scope:
   tool:write(**/locale/**/*.mo), tool:edit(**/bun.lock),
   tool:write(**/bun.lock), tool:edit(**/uv.lock), tool:write(**/uv.lock),
   tool:edit(**/package-lock.json), tool:write(**/package-lock.json),
+  tool:edit(**/pnpm-lock.yaml), tool:write(**/pnpm-lock.yaml),
+  tool:edit(**/poetry.lock), tool:write(**/poetry.lock),
   tool:edit(**/cdk.out/**), tool:write(**/cdk.out/**), tool:edit(**/dist/**),
   tool:write(**/dist/**), tool:edit(**/routeTree.gen.ts),
   tool:write(**/routeTree.gen.ts), tool:edit(**/generated/**),
@@ -27,10 +29,10 @@ scope:
 This file is generated. Hand edits are overwritten by the next generation and
 drift from their source.
 
-- Change the source and rerun the generator: OpenAPI schemas
-  (`scripts/export_openapi.py` in api, `bun run api:sync`/`api:types` in
-  frontend), TanStack Router plugin for `routeTree.gen.ts`, Paraglide for
-  `messages/`, `compilemessages` for `.mo`, the package manager for lockfiles,
-  `cdk synth` for `cdk.out`, the build for `dist`/`.next`/`.astro`/`target`.
-  Never patch installed dependencies in `node_modules`/`.venv`; fix the caller,
+- Change the source and rerun the project's generator: the OpenAPI export for
+  schemas and clients, the router or i18n plugin for its output, the package
+  manager for lockfiles, the build for `dist`/`.next`/`.astro`/`target`/`cdk.out`.
+  The project's `AGENTS.md` or scripts name the command.
+- Never patch installed dependencies in `node_modules`/`.venv`; fix the caller,
   upgrade, or use the package manager's patch mechanism (`patches/`).
+- If this path is hand-written despite its name, continue.

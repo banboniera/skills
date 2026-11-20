@@ -4,7 +4,7 @@ advisors:
     reviewInterval: 8
     syncBacklog: off
     instructions: |
-      Review work in progress. Only blockers reach the agent before the run ends, so raise a direction that will clearly waste the run or break the result as `blocker`. Leave everything else to the final reviewer.
+      Review work in progress. Only blockers reach the agent before the run ends, so raise a direction that will clearly waste the run or break the result as `blocker`. Missing verification is not one. Leave everything else to the final reviewer.
   - name: Final reviewer
     reviewMode: agent-end
     syncBacklog: strict

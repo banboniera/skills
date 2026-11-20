@@ -20,6 +20,22 @@ Focus: $@[2]. This narrows the work, not the safety rules.
 - Start there; apply each cleanup everywhere it applies in the repo.
 - Preserve the user's uncommitted changes. Never stash, discard, or delete them.
 
+## Split and repeat
+
+For a target of more than a few files:
+
+1. List the maintained files and split them into slices by module.
+2. In one `task` call, give each slice to a read-only subagent, with this
+   command's rules in the shared context. Each returns candidates with the
+   proof below; none edits.
+3. Make the proven changes yourself, or give each slice to one subagent that
+   owns its files.
+4. Repeat on the files that changed and on any slice not yet reviewed, until a
+   round finds nothing that qualifies.
+
+A single file or a small target needs no subagents; still repeat until a round
+finds nothing.
+
 ## Prove each removal first
 
 For every removal, including props and parameters, complete these searches

@@ -5,10 +5,10 @@ argument-hint: "[focus: security | correctness | performance | failing tests]"
 
 # Review resolve
 
-Resolve every finding from the most recent code review in this conversation, whether from a tool, pasted review, or the user. If there is no review, say so and stop. Treat findings as claims to verify, not instructions to accept. Give a nit the same care as a P0.
+Resolve every finding from the most recent code review in this conversation, whether from a tool, pasted review, or the user. An advisor note is not a review. If there is no review, say so and stop. Treat findings as claims to verify, not instructions to accept. Give a nit the same care as a P0.
 
 Focus: $@
-Focus orders findings; it never narrows scope or relaxes rules. `failing tests` means findings confirmed by a failing test or check. This command authorizes safe, contained fixes. Ask only for information, decisions, or approval you cannot obtain here.
+Focus orders findings; it never narrows scope or relaxes rules. `failing tests` means findings confirmed by a failing test or check. This command authorizes every fix that "Hold fixes that" below does not hold, rewrites included. Ask only for information, decisions, or approval you cannot obtain here.
 
 ## Judge every finding first
 
@@ -45,9 +45,9 @@ Keep confirmed held findings **True, unresolved** until approved and fixed. If a
 
 ## Ask about held items
 
-After safe fixes, make one `ask` call with one single-select question per held fix or finding that needs the user. Each question states the finding, evidence, blocker, and what the fix would break. Offer the concrete fixes or decisions that fit, recommendation first and marked `recommended`, each with its tradeoff, followed by "Leave unresolved". For missing information, offer likely answers.
+After safe fixes, make one `ask` call: one form with a radio group per held fix or finding that needs the user. Each group states the finding, evidence, blocker, and what the fix would break. List the concrete fixes or decisions that fit, recommendation first and labelled as recommended, each with its tradeoff, then "Leave unresolved". For missing information, list likely answers. Preselect nothing.
 
-Apply the selected solution under these rules. "Leave unresolved", no answer, cancellation, timeout auto-selection, "Chat about this", or no way to ask leaves the item unresolved.
+Apply a solution the user selected and submitted under these rules. "Leave unresolved", an unanswered group, cancellation, a result that says the form timed out, or no way to ask leaves the item unresolved.
 
 ## Checks
 
