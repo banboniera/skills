@@ -7,8 +7,6 @@ condition:
 scope: "tool:edit(**/*.py), tool:write(**/*.py)"
 ---
 
-# Python type suppression
-
 Fix the type before suppressing it: narrow with `isinstance`/`assert_never`, use
 `TypedDict`/`Protocol`/overloads, annotate the queryset or manager generics, or
 correct the return type.

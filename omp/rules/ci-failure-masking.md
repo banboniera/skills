@@ -17,10 +17,6 @@ scope:
 interruptMode: never
 ---
 
-# CI failure masking
-
-Masking a failing step makes CI and deploys report success for broken builds.
-
 - Fix the failing command, or make the condition it tolerates explicit (check
   the exit code you expect, test for the file first).
 - `|| true` is acceptable only for a command whose failure is a documented,

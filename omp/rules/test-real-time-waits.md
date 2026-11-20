@@ -19,10 +19,7 @@ scope:
 interruptMode: never
 ---
 
-# Test real time waits
-
-Fixed waits make tests slow and flaky: they pass on a fast machine and fail in
-CI. Check the wait you just wrote.
+Check the wait you just wrote.
 
 - Playwright: use web-first assertions (`await expect(locator).toBeVisible()`,
   `toHaveURL`, `expect.poll`) and locator auto-waiting; never

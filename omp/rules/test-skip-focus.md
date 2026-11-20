@@ -14,8 +14,6 @@ scope:
 interruptMode: never
 ---
 
-# Test skip focus
-
 A failing test is information: fix the code, or fix the test if it asserts the
 wrong behavior.
 

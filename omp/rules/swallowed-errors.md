@@ -26,10 +26,7 @@ scope:
 interruptMode: never
 ---
 
-# Swallowed errors
-
-Swallowing an error turns a loud, local failure into silent wrong behavior
-somewhere else. Check the handler you just wrote.
+Check the handler you just wrote.
 
 - Catch only the specific exception type you expect, at the level that can act
   on it: show the user feedback, return a typed fallback, retry a

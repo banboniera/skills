@@ -98,8 +98,7 @@ finds nothing.
    would catch); tests of structure rather than behavior (a mock of the
    project's own module was called, a factory returns a class, internal call
    order); test scaffolding (custom builders, fixture frameworks, mocks of the
-   project's own modules) heavier than the code it tests. Coverage of behavior
-   no other test checks is never redundant.
+   project's own modules) heavier than the code it tests.
 10. **Logic for cases that will probably never happen:** checks, fallbacks,
     recovery paths, and business rules for situations the code, its callers, its
     config, and its data make impossible or very unlikely, such as null checks
@@ -230,7 +229,6 @@ unmade; implement the rest.
   fail on the old behavior, then implement and see it pass. Force the changed
   path: an unchanged path must not satisfy the assertion. For a pooled-resource
   check, use a one-resource pool so a healthy spare cannot mask the result.
-  A test passing on both versions does not prove the change.
 - Where no check would catch a behavior-preserving change, make only rewrites
   clearly equivalent by reading.
 - If a simplification needs something you don't have (a secret, access, a

@@ -37,9 +37,8 @@ growth plans) unless the verdict turns on them.
 When you do ask, use one `ask` call: one form with a radio group per question,
 or checkboxes when several answers can hold. Give concrete options (named
 choices, or ranges for numbers), each saying how it changes the verdict, with
-your best guess first and labelled as recommended. Don't add an "Other" option;
-the form adds one. Without an `ask` tool, ask the same questions as a short
-numbered list with your guesses.
+your best guess first and labelled as recommended. Without an `ask` tool, ask
+the same questions as a short numbered list with your guesses.
 
 Ask again later only when an answer raises another question that passes the
 same test. If answers contradict each other under every reading, name the

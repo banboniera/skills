@@ -19,11 +19,6 @@ scope:
   tool:write(**/.github/workflows/**), tool:bash"
 ---
 
-# TLS verification bypass
-
-Disabling certificate checks turns every connection into a man-in-the-middle
-target; it "fixes" a TLS error by removing the security.
-
 - Fix the trust problem: install the right CA bundle (`certifi`,
   `NODE_EXTRA_CA_CERTS`, the system store in the image), use the correct
   hostname, or renew the certificate.

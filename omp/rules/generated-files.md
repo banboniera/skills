@@ -24,11 +24,6 @@ scope:
   tool:edit(**/Cargo.lock), tool:write(**/Cargo.lock)"
 ---
 
-# Generated files
-
-This file is generated. Hand edits are overwritten by the next generation and
-drift from their source.
-
 - Change the source and rerun the project's generator: the OpenAPI export for
   schemas and clients, the router or i18n plugin for its output, the package
   manager for lockfiles, the build for `dist`/`.next`/`.astro`/`target`/`cdk.out`.

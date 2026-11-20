@@ -11,12 +11,6 @@ scope: "tool:bash"
 interruptMode: never
 ---
 
-# Shell file edits
-
-Shell rewrites skip the edit tool's anchors and diff, so a bad pattern silently
-corrupts files (non-ASCII text, partial matches, unclosed delimiters) and leaves
-no reviewable change.
-
 - One file or a few hunks: use `edit`.
 - The same structural change across many files: use `ast_edit`. A plain-text
   rename across many files may use a script, but only after `git status` is

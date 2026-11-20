@@ -18,11 +18,8 @@ scope: "tool:bash"
 repeatMode: always
 ---
 
-# Destructive git
-
 This command can destroy work that is not yours: uncommitted changes, untracked
-files, stashes, branches or remote refs. Unexpected changes in the tree belong
-to the user.
+files, stashes, branches or remote refs.
 
 `bash.gitGuard` refuses stash, `reset --hard`, restore, checkout and switch in a
 main checkout. In a linked worktree they run after saving the discarded changes

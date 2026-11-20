@@ -14,8 +14,6 @@ scope:
 interruptMode: never
 ---
 
-# JavaScript lint suppression
-
 This comment switches lint off for a whole file, a range, a rule group or every
 rule. A lint finding is a defect report: fix the code.
 

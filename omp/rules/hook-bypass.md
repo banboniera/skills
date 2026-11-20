@@ -10,8 +10,6 @@ scope: "tool:bash"
 repeatMode: always
 ---
 
-# Hook bypass
-
 Hooks and signing are the repo's quality gate. If a hook fails, fix what it
 reports; do not bypass it.
 

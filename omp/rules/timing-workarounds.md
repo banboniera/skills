@@ -16,10 +16,7 @@ scope:
 interruptMode: never
 ---
 
-# Timing workarounds
-
-Sleeping or deferring "until it works" hides a race; it fails again under load
-or on another machine. Check the delay you just wrote.
+Check the delay you just wrote.
 
 - Find the event or state the code is really waiting for and wait on that: a
   signal/slot, a Promise, a query's `isSuccess`, a DB commit

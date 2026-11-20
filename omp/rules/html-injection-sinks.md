@@ -15,8 +15,6 @@ scope:
 interruptMode: never
 ---
 
-# HTML injection sinks
-
 This renders raw HTML. Use it only with content you control or have sanitized.
 
 - Prefer normal rendering (JSX text, Astro expressions, Django autoescape,

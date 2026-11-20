@@ -17,8 +17,6 @@ scope:
   tool:write(**/nginx/**)"
 ---
 
-# Container hygiene
-
 - Pin images to a version (and digest for production); `:latest` makes builds
   non-reproducible.
 - Grant the exact permissions and owner the process needs (`chown`, narrow

@@ -33,8 +33,6 @@ scope:
   tool:write(**/astro.config.*)"
 ---
 
-# Tooling config weakening
-
 This edit touches lint, type-check, or test configuration. Loosening it (turning
 a rule off or down to warn/info, adding ignores/excludes, disabling strictness,
 adding retries, raising timeouts) hides defects for every future change.

@@ -13,11 +13,6 @@ scope:
   tool:write(**/migrations/[0-9]*.sql), tool:write(**/migrations/m[0-9]*.rs)"
 ---
 
-# Applied migration edits
-
-Editing a migration that is already applied anywhere (main branch, staging,
-production) changes nothing on those databases and forks the schema history.
-
 - Add a new migration instead: Django `makemigrations` (data changes via
   `RunPython` with a reverse function), a new numbered `.sql` file, or a new
   SeaORM `m<date>_<n>_<name>.rs` registered in the migrator.

@@ -1,9 +1,9 @@
 # Sentry resolve
 
-Sentry groups the errors real users hit in deployed code. Each issue proves a
-failure happened, not where its cause is: the cause may be in this code, in an
-older release than the one checked out, in a dependency, a browser extension, or
-a service this code calls. Find the cause of each issue, fix the ones that are
+Each Sentry issue proves a failure happened, not where its cause is: the cause
+may be in this code, in an older release than the one checked out, in a
+dependency, a browser extension, or a service this code calls. Find the cause
+of each issue, fix the ones that are
 this code's to fix, and record the outcome in Sentry. Running this command is
 the user's go-ahead, so work through every issue without stopping to ask.
 Nothing is committed: fixes stay in the working tree for the user to review,

@@ -10,8 +10,6 @@ scope:
 interruptMode: never
 ---
 
-# TypeScript type suppression
-
 Do not silence the TypeScript compiler. Fix the type: narrow with
 `in`/`typeof`/discriminants, parse untrusted data with the project's schema
 library, correct the declaration, or fix the generated client input (the
