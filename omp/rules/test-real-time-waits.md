@@ -28,6 +28,7 @@ CI.
   `page.waitForTimeout`.
 - Vitest/Testing Library: `vi.useFakeTimers()` + `vi.advanceTimersByTime()`, or
   `findBy*`/`waitFor` on a real condition.
-- Django/pytest: control time with `timezone.override`/mocked clocks; for Celery
-  and `on_commit` use `captureOnCommitCallbacks(execute=True)`; drive hardware
-  through the simulator, not delays.
+- Django/pytest: pin the clock with the project's time-machine or freezegun,
+  or patch `django.utils.timezone.now`; for Celery and `on_commit` use
+  `captureOnCommitCallbacks(execute=True)`; drive hardware through the
+  simulator, not delays.

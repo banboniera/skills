@@ -1,104 +1,94 @@
 ---
 name: evaluating-guidance
 description: >-
-  Reviews a project's agent guidance (AGENTS.md, .omp/RULES.md, rules, skills):
-  mines recent agent sessions for repeated mistakes, checks every claim against
-  the code and primary sources, replaces prose with checks where possible, fixes
-  code built on wrong guidance, and hands over the diff. Used for the weekly
-  guidance review, before adding, rewriting or deleting a rule or skill, when an
-  agent repeats a mistake, or after a model or omp upgrade.
+  Reviews omp agent guidance (AGENTS.md, RULES.md, rules, skills, slash
+  commands, agent definitions, advisor files) against real sessions, the code
+  and primary sources, and fixes what fails. Use for a project's weekly
+  guidance review, when an agent repeats a mistake, to check or change a named
+  rule, skill or command, and after a model or omp upgrade.
 ---
 
 # Evaluating guidance
 
 Guidance earns its place only if agents act differently, and correctly, because
-of it. Evidence comes from real sessions, the code and primary sources, not from
-new trial runs. One run fits in one working session: the root agent applies the
-changes and hands the user a report and the full diff; the user commits.
+of it. Evidence comes from real sessions, the code and primary sources. Do not
+build trial runs, sandboxes or benchmarks to test guidance; measuring one
+concrete claim, such as how long a check takes, is ordinary evidence.
 
-**Targets:** `AGENTS.md`, `.omp/RULES.md`, `.omp/WATCHDOG.md`, `.omp/rules/`,
-`.omp/skills/` and their files.
+Take the path the request names:
 
-**Window:** sessions since the last run, which is the last commit whose subject
-starts with `guidance review`. On the first run, the last 14 days.
+- **Project review:** a project's weekly review, "review this project's
+  guidance", or after a model or omp upgrade. Follow [review.md](review.md).
+- **Scoped:** a named rule, skill, command or agent, one claim or finding, a
+  repeated mistake, or guidance that another task changes. Follow the steps
+  below for those targets only; no review window, no project-wide analysis.
 
-## 1. Gather evidence
+Apply the changes unless the request asks only for an assessment. From a
+project, change user-level guidance only when asked; otherwise report the
+finding.
 
-Run these in parallel as read-only subagents; they report, the root decides.
+## Guidance
 
-1. **Sessions.** Error analysis of the window's sessions per
-   [session-analysis.md](session-analysis.md): a list of failure modes, each
-   with a count, example sessions and a cause (missing, wrong or ignored
-   guidance, or not a guidance problem).
-2. **Audit.** Mechanical checks over all targets:
-   - every path, command, symbol, link, setting and rule trigger resolves
-     (grep or glob it);
-   - no two targets contradict each other or state the same fact;
-   - no time-relative words ("new", "currently", "for now");
-   - always-loaded size: lines of `AGENTS.md`, `RULES.md` and every rule
-     without a trigger.
-3. **Claim review.** Each claim, in this order, citing code and sources:
+- Project: every `AGENTS.md`, and in `.omp/`: `RULES.md`, `WATCHDOG.md`,
+  `WATCHDOG.yml`, `rules/`, `skills/`, `commands/`, `agents/`, `extensions/`.
+- User level: the same names in `~/.omp/agent/`. They are often symlinks;
+  `realpath` shows the repository that owns them.
+
+Scripts, extensions and fixtures that belong to guidance are code: judge the
+text they show agents as guidance and the rest as code.
+
+## Steps
+
+1. **Evidence.** Read the target, what loads it (trigger, description, index
+   entry) and the code and configs it describes. To see how it behaved, or to
+   find a repeated mistake, digest the project's sessions whose digest
+   mentions it and read them per [session-analysis.md](session-analysis.md):
+
+   ```sh
+   python3 "$(realpath skill://evaluating-guidance/scripts/sessions.py)" \
+     --project <dir> --since <YYYY-MM-DD> --match '<rule, skill or file name>'
+   ```
+
+2. **Judge each claim** in this order; a claim that is not needed is dropped
+   without the later questions:
    1. **Needed?** If the agent learns it anyway from code, types, tests, check
-      output or another target, suggest dropping it (or keeping one home) and
-      stop.
+      output or another target, drop it, or keep one home.
    2. **Correct?** Check it against the code, tests and configs, and its
       technical premise against current official docs and primary sources. If
-      wrong, give the correction and list the code built under it.
-   3. **Better?** A test, lint, type, hook or code change that makes the mistake
-      impossible; clearer wording per [writing-guidance.md](writing-guidance.md);
-      a better home.
+      it is wrong, correct it and list the code built under it.
+   3. **Better?** A check or code change that makes the mistake impossible, a
+      home that reaches the agent before the decision, clearer wording
+      ([writing.md](writing.md)).
+3. **Decide** on the strongest fix that works:
+   1. a check (test, lint, type, hook) whose failure names the fix; it lands
+      before the prose it replaces is deleted;
+   2. a code change that removes the trap;
+   3. corrected guidance in its one home, written per [writing.md](writing.md);
+   4. deletion.
 
-   Review targets changed since the last run, targets the session analysis
-   implicates, and a rotating quarter of the rest, so every target is reviewed
-   about once a month.
-
-## 2. Decide and apply
-
-The root agent reads all evidence, then for each finding picks the strongest fix
-that works:
-
-1. A check (test, lint, type, hook) that makes the mistake impossible. It lands
-   before the prose it replaces is deleted.
-2. A code change that removes the trap.
-3. Corrected guidance in its one home, per [writing-guidance.md](writing-guidance.md).
-4. Deletion.
-
-Add guidance only for a failure seen at least twice, or once when it is costly
-(security, tenancy, money, data loss, irreversible operations). Ignored guidance
-needs a stronger home (a check, a hook, `RULES.md`, the index), not louder words.
-
-## 3. Fix code built on wrong guidance
-
-Fixers, one subagent per code area, refactor code built under guidance that was
-dropped or corrected; each fix comes with a test that proves the correct
-behavior. Fixers change only code and report guidance findings to the root.
-Follow the project's own multi-agent and verification rules: who runs checks,
-and that each check runs once per code state.
-
-## 4. Verify
-
-- The project's own checks on the final tree, once.
-- Each changed rule trigger: grep it against files it must match and must not.
-- Each changed skill description: compare it with the session prompts where the
-  skill should or should not have loaded.
-- One review pass (step 1.3) over the changed targets only. Repeat steps 2–4
-  only if it finds something.
-
-For a new or rewritten skill that drives a costly procedure, you may also run 2–3
-realistic prompts as parallel subagents with the old and the new version, and
-compare the transcripts blind. That takes minutes; do not build sandboxes,
-benchmarks or statistics.
-
-## 5. Report
-
-Lead with the result. List:
-
-- failure modes found, with counts and example sessions;
-- guidance deleted, corrected, moved, replaced by checks, or added, with the
-  evidence for each;
-- code fixes and the tests that prove them;
-- findings deferred or rejected, with the reason;
-- checks run and their results.
-
-Then give the full diff and the suggested commit subject
-`guidance review YYYY-MM-DD`.
+   Add guidance only for a failure seen at least twice, for one costly failure
+   (security, tenancy, money, data loss, irreversible operations), or when the
+   user asks for it. Match the fix to the cause: guidance that never reached
+   the agent needs a home that does; guidance the agent had and ignored needs a
+   check or an interrupting rule, not louder words.
+4. **Fix code built on wrong guidance**, each fix with a test that proves the
+   correct behaviour. Follow the project's own rules for subagents and checks;
+   a check runs once per code state.
+5. **Verify** what changed:
+   - Rule trigger or scope: run
+     `omp ttsr test --rule <rule.md> --source tool --tool <edit|write|bash> --path <file> '<snippet>'`
+     with a snippet the rule must match and with a near miss it must not.
+     `omp ttsr scan -r <rule.md> <dir>` lists where it fires in the tree;
+     `omp ttsr list` shows that it registered. None of these judges a
+     `question`: test its `condition` and `scope`, and say the verdict is
+     untested.
+   - Skill: `omp skill list --json` shows it with the description as parsed.
+   - Command or agent: the frontmatter parses, and every agent, tool and model
+     it names exists.
+   - Every path, command, symbol and link in the changed text resolves.
+   - Code: the project's checks, once, on the final tree.
+   - Before deleting a file, read it and search for what uses it.
+6. **Report.** Lead with the result. Then each change with its target and
+   evidence, code fixes with their tests, findings not acted on with the
+   reason, and the checks run with their results. Leave the changes
+   uncommitted unless the user asks for a commit.
