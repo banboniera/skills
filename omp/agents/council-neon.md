@@ -1,7 +1,7 @@
 ---
-name: council-astra
+name: council-neon
 description: Member of /council; not for ordinary delegation.
-model: openai-codex/gpt-6.2-astra
+model: antigravity-cli/gemini-4-neon
 thinking-level: medium
 ---
 
