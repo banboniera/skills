@@ -1,0 +1,59 @@
+{
+  "fixture": "fixture-shop",
+  "evals": [
+    {
+      "id": "rule-from-repeated-mistake",
+      "prompt": "agents in this repo keep silencing type errors with `as any` in src/ (see parseLine in src/cart.ts). I've corrected that three times this week. make sure it stops happening",
+      "expectations": [
+        "Adds a triggered rule under .omp/rules (condition or astCondition), not only prose in AGENTS.md",
+        "The rule is scoped to TypeScript edits or writes rather than every tool call and all prose",
+        "The rule body tells the agent what to do instead, such as narrowing the unknown value with a type guard or a typed parser",
+        "The rule fires on `as unknown as T` and on a `: any` annotation in src/, not only on `as any`",
+        "Adds no dependencies, lockfiles or tool configuration the user did not ask for, or asks before doing so"
+      ],
+      "checks": [
+        {"name": "a rule fires on `as any` in a src/ edit", "run": "for r in .omp/rules/*.md; do omp ttsr test --rule \"$r\" --source tool --tool edit --path src/a.ts --json 'const v = raw as any' | jq -e '.triggered | length > 0' >/dev/null && exit 0; done; exit 1"},
+        {"name": "no rule fires on prose that mentions any", "run": "for r in .omp/rules/*.md; do omp ttsr test --rule \"$r\" --source text --json 'You can use any of the two helpers.' | jq -e '.triggered | length > 0' >/dev/null && exit 1; done; exit 0"}
+      ]
+    },
+    {
+      "id": "skill-never-picked",
+      "prompt": "the pdf-forms skill in .omp/skills never gets used when I ask the agent to fill in a PDF form. fix it",
+      "expectations": [
+        "Rewrites the description of .omp/skills/pdf-forms/SKILL.md to say when to use the skill, in words a request to fill a PDF form would contain",
+        "Leaves the skill's steps intact"
+      ],
+      "checks": [
+        {"name": "description is 100 characters or fewer and names forms", "run": "python3 -c \"import re,sys; t=open('.omp/skills/pdf-forms/SKILL.md').read(); f=t.split('\\n---',1)[0]; m=re.search(r'^description:\\s*(.*(?:\\n[ \\t]+.*)*)', f, re.M); d=' '.join(m.group(1).replace('>-','').split()) if m else ''; sys.exit(0 if 0 < len(d) <= 100 and 'form' in d.lower() else 1)\""},
+        {"name": "steps unchanged", "run": "grep -q 'update_page_form_field_values' .omp/skills/pdf-forms/SKILL.md"}
+      ]
+    },
+    {
+      "id": "command-with-argument",
+      "prompt": "add a /changelog slash command for this repo: I pass a version like 1.4.0 and it writes release notes from the git log since the previous tag",
+      "expectations": [
+        "Creates .omp/commands/changelog.md whose body uses the version argument through $1 or $ARGUMENTS",
+        "The command says what to do when no version is given",
+        "The frontmatter has a description and an argument-hint"
+      ],
+      "checks": [
+        {"name": "command file uses an argument placeholder", "run": "grep -Eq '\\$1|\\$ARGUMENTS|\\$@' .omp/commands/changelog.md"}
+      ]
+    }
+  ],
+  "triggers": [
+    {"query": "agents keep adding eslint-disable comments in the api folder, can you make them stop doing that", "should_trigger": true},
+    {"query": "write a skill that teaches the agent how we deploy the shop to fly.io, the steps are in docs/deploy.md", "should_trigger": true},
+    {"query": "our AGENTS.md has grown to 400 lines and half of it is outdated, clean it up", "should_trigger": true},
+    {"query": "create a /release command that bumps the version in package.json and tags it", "should_trigger": true},
+    {"query": "the migration-safety rule fires on every edit, even README changes. narrow it down", "should_trigger": true, "split": "test"},
+    {"query": "turn what we just did with the stripe webhook debugging into a reusable skill", "should_trigger": true, "split": "test"},
+    {"query": "add a line to RULES.md so agents always ask before running database migrations", "should_trigger": true, "split": "test"},
+    {"query": "fix the type error in src/cart.ts parseLine", "should_trigger": false},
+    {"query": "write unit tests for totalCents in src/cart.ts", "should_trigger": false},
+    {"query": "add an eslint rule to the project config that bans `as any`", "should_trigger": false},
+    {"query": "update the README with the new install steps", "should_trigger": false, "split": "test"},
+    {"query": "run the pdf-forms skill on invoices/march.pdf and fill in the customer fields", "should_trigger": false, "split": "test"},
+    {"query": "review our agent guidance against last week's sessions and fix what keeps failing", "should_trigger": false, "split": "test"}
+  ]
+}

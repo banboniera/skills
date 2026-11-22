@@ -13,5 +13,6 @@ scope: >-
 repeatMode: once
 ---
 
-This file is agent guidance. Read `skill://evaluating-guidance/writing.md`,
-then redo the edit to meet it.
+This file is agent guidance. Read `skill://writing-guidance/writing.md` and,
+for a skill, rule or command, the kind's file beside it (`skills.md`,
+`rules.md`, `commands.md`), then redo the edit to meet them.
