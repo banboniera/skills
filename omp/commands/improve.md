@@ -87,15 +87,15 @@ make one `ask` call: one form with a radio group per gated improvement. Each
 group gives:
 
 - File:line, concrete scenario, and impact.
-- The reasonable approaches, recommendation first and labelled as recommended,
-  then "Leave unchanged". Each option states the change and what breaks, which
-  repos change, or which data changes.
+- The reasonable approaches, then "Leave unchanged". Preselect your
+  recommendation; preselection marks it, so don't label it. Each option
+  states the change and what breaks, which repos change, or which data
+  changes.
 
-Preselect nothing. Only an approach the user selected and submitted, or
-approved in chat, is authorized, and only that approach. "Leave unchanged", an
-unanswered group, cancellation, a result that says the form timed out, or no
-way to ask leaves that improvement unmade. Implement the independent
-improvements anyway.
+Only an approach the user selected and submitted, or approved in chat, is
+authorized, and only that approach. "Leave unchanged", an unanswered group,
+cancellation, a result that says the form timed out, or no way to ask leaves
+that improvement unmade. Implement the independent improvements anyway.
 
 ## Implement
 

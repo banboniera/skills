@@ -1,6 +1,6 @@
 ---
 name: council-opus
-description: Member of /council; not for ordinary delegation.
+description: Member of the council skill; not for ordinary delegation.
 model: anthropic/claude-opus-5-5
 thinking-level: medium
 ---

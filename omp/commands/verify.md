@@ -94,14 +94,15 @@ fix. Each group gives:
 
 1. File:line, failure, triggering caller/input, and evidence. For suspected bugs,
    include the assumptions and what would settle them.
-2. The reasonable fixes, recommendation first and labelled as recommended, then
-   "Leave unfixed". Each option states its behavior changes, consumer breaks,
-   affected repos, and irreversible data changes as applicable.
+2. The reasonable fixes, then "Leave unfixed". Preselect your recommendation;
+   preselection marks it, so don't label it. Each option states its behavior
+   changes, consumer breaks, affected repos, and irreversible data changes as
+   applicable.
 
-Preselect nothing. Only a fix the user selected and submitted, or approved in
-chat, is authorized. "Leave unfixed", an unanswered group, cancellation, a
-result that says the form timed out, or no way to ask leaves that bug unfixed.
-Continue with the other fixes.
+Only a fix the user selected and submitted, or approved in chat, is
+authorized. "Leave unfixed", an unanswered group, cancellation, a result that
+says the form timed out, or no way to ask leaves that bug unfixed. Continue
+with the other fixes.
 
 ## Fix
 

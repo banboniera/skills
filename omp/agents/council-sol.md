@@ -1,6 +1,6 @@
 ---
 name: council-sol
-description: Member of /council; not for ordinary delegation.
+description: Member of the council skill; not for ordinary delegation.
 model: openai-codex/gpt-6.2-sol
 thinking-level: high
 ---

@@ -1,6 +1,6 @@
 ---
 name: council-argon
-description: Member of /council; not for ordinary delegation.
+description: Member of the council skill; not for ordinary delegation.
 model: antigravity-cli/gemini-4-argon
 thinking-level: medium
 ---

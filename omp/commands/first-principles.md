@@ -36,9 +36,10 @@ growth plans) unless the verdict turns on them.
 
 When you do ask, use one `ask` call: one form with a radio group per question,
 or checkboxes when several answers can hold. Give concrete options (named
-choices, or ranges for numbers), each saying how it changes the verdict, with
-your best guess first and labelled as recommended. Without an `ask` tool, ask
-the same questions as a short numbered list with your guesses.
+choices, or ranges for numbers), each saying how it changes the verdict.
+Preselect your best guess; preselection marks it, so don't label it. Without
+an `ask` tool, ask the same questions as a short numbered list with your
+guesses.
 
 Ask again later only when an answer raises another question that passes the
 same test. If answers contradict each other under every reading, name the
@@ -127,8 +128,8 @@ No migration plan, timeline, or effort estimate unless asked.
 1. Save the proposal to `docs/first-principles/YYYY-MM-DD-<topic>.md` in the
    repository root, or ask where to save it when there is no repository.
    Don't commit it.
-2. Ask with `ask` whether to approve it: one radio group with "Approve" and
-   "Change something", nothing preselected, and a text field for the changes.
+2. Ask with `ask` whether to approve it: one radio group with "Approve"
+   (preselected) and "Change something", and a text field for the changes.
    Apply changes to both the reply and the file. Only a submitted "Approve"
    counts: cancellation, a result that says the form timed out, or no answer
    leaves it unapproved.

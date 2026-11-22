@@ -45,7 +45,7 @@ Keep confirmed held findings **True, unresolved** until approved and fixed. If a
 
 ## Ask about held items
 
-After safe fixes, make one `ask` call: one form with a radio group per held fix or finding that needs the user. Each group states the finding, evidence, blocker, and what the fix would break. List the concrete fixes or decisions that fit, recommendation first and labelled as recommended, each with its tradeoff, then "Leave unresolved". For missing information, list likely answers. Preselect nothing.
+After safe fixes, make one `ask` call: one form with a radio group per held fix or finding that needs the user. Each group states the finding, evidence, blocker, and what the fix would break. List the concrete fixes or decisions that fit, each with its tradeoff, then "Leave unresolved". For missing information, list likely answers. Preselect your recommendation; preselection marks it, so don't label it.
 
 Apply a solution the user selected and submitted under these rules. "Leave unresolved", an unanswered group, cancellation, a result that says the form timed out, or no way to ask leaves the item unresolved.
 

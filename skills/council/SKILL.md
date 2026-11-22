@@ -1,15 +1,17 @@
 ---
+name: council
 description: >-
-  Get independent answers from the council models, have them review each other
-  anonymously, then decide and act on the evidence.
-argument-hint: "<question or task>"
+  Gets independent answers from the council models, has them review each other
+  anonymously, then decides and acts on the evidence. Use for /skill:council or
+  when a procedure such as /implement calls for a council review.
+disable-model-invocation: true
 ---
 
 # Council
 
-Request: $ARGUMENTS
-
-If the request is empty, ask what the council should decide and stop.
+The request is the text the skill was invoked with, or the one a calling
+procedure supplies. If it is empty, ask what the council should decide and
+stop.
 
 You chair the council. Its members are the agents `council-opus`,
 `council-neon`, `council-sol` and `council-argon`. Their files pin model and thinking level, so
@@ -69,8 +71,8 @@ When the request calls for changes:
   covered it, since that agent keeps its context. One owner per file; verify
   the result.
 - **Otherwise** (a product or design choice, conflicting evidence, a breaking,
-  cross-repository or irreversible change): use `ask` with the options, their
-  evidence and your recommendation first.
+  cross-repository or irreversible change): use `ask` with the options and
+  their evidence, your recommendation preselected.
 
 Never commit unless the user asked.
 

@@ -192,10 +192,10 @@ states:
 - for caches, retries, pools, and rate limits, that the repo can't show
   production load, and the metric that would settle it.
 
-List the reasonable simpler shapes, your recommendation first and labelled as
-recommended, then "Leave unchanged". Each option states the flexibility given
-up, the cost of restoring it, and the consumers, runtime behavior, repos, or
-data it changes. Preselect nothing.
+List the reasonable simpler shapes, then "Leave unchanged". Preselect your
+recommendation; preselection marks it, so don't label it. Each option states
+the flexibility given up, the cost of restoring it, and the consumers, runtime
+behavior, repos, or data it changes.
 
 A shape the user selected and submitted, or a chat answer approving one,
 approves only that shape and its stated outcomes. If the patch changes a

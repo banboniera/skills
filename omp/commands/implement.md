@@ -48,19 +48,18 @@ alone first if its answer could remove other questions. Each question says
 what you found and why it is still open, and is `required`:
 
 - a choice: radio group, or checkboxes when several can hold (add "None" if
-  valid); each option says what it changes, your recommendation first and
-  labelled;
+  valid); each option says what it changes;
 - a fact you cannot offer choices for: a text field.
 
-Preselect nothing.
+Preselect your recommendation; preselection marks it, so don't label it.
 
 After each round, research what the answers open up and apply the test
 again. Stop when nothing passes it and every requirement maps to a behavior a
 test or check can confirm.
 
 - If the user answers in chat instead, continue from that answer.
-- A timed-out form answers nothing: report the open questions and end the
-  turn.
+- A result that says the form timed out answers nothing, even with the
+  preselected values: report the open questions and end the turn.
 - Without an `ask` tool, list the questions in chat and end the turn.
 - Outside the test: ask for each approval the Engineering Rules require,
   naming the action; only an explicit approval authorizes it, never a timeout
@@ -97,11 +96,11 @@ during implementation, stop editing and go to step 4.
      add a test or check for each to its task.
 2. Send questions found while writing through step 2 and fold the answers
    into the plan.
-3. Read `~/.omp/agent/commands/council.md` and run its Answer, Review and
-   Decide stages with the request: "Review the plan at <path> against its
-   Requirements. Report what would make the implementation wrong, incomplete
-   or needlessly complex, with `file:line` or doc evidence, and any question
-   only the user can settle. Skip style."
+3. Read `skill://council` and run its Answer, Review and Decide stages with
+   the request: "Review the plan at <path> against its Requirements. Report
+   what would make the implementation wrong, incomplete or needlessly
+   complex, with `file:line` or doc evidence, and any question only the user
+   can settle. Skip style."
 4. Apply the findings that hold. Send the user's decisions through step 2 and
    fold the answers into the plan.
 
