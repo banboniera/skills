@@ -13,7 +13,7 @@ condition:
   - '\bgit\s+branch\s+-D\b'
   - '\bgit\s+push\b[^\n|;&]*\s--delete\b'
   - '\bgit\s+push\b[^\n|;&]*\s:\S'
-  - '(/|\brtk\s+)git\s+(checkout|switch)\b'
+  - '/git\s+(checkout|switch)\b'
 scope: "tool:bash"
 repeatMode: always
 ---
@@ -24,8 +24,7 @@ files, stashes, branches or remote refs.
 `bash.gitGuard` refuses stash, `reset --hard`, restore, checkout and switch in a
 main checkout. In a linked worktree they run after saving the discarded changes
 to `refs/omp/discarded`; that is a recovery path, not the user's consent. Calling
-git by path (`/usr/bin/git`) or through a wrapper (`rtk git`) skips the guard:
-run plain `git`.
+git by path (`/usr/bin/git`) skips the guard: run plain `git`.
 
 - Inspect first (`git status`, `git diff`, `git clean -n`, `git branch -v`) and
   touch only files you changed. To undo your own edits, revert those hunks with

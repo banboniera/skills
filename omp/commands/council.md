@@ -1,7 +1,7 @@
 ---
 description: >-
-  Get independent answers from three council models, have them review each
-  other anonymously, then decide and act on the evidence.
+  Get independent answers from the council models, have them review each other
+  anonymously, then decide and act on the evidence.
 argument-hint: "<question or task>"
 ---
 
@@ -12,7 +12,7 @@ Request: $ARGUMENTS
 If the request is empty, ask what the council should decide and stop.
 
 You chair the council. Its members are the agents `council-opus`,
-`council-neon` and `council-sol`. Their files pin model and thinking level, so
+`council-neon`, `council-sol` and `council-argon`. Their files pin model and thinking level, so
 never set `model` or `effort` on their task items.
 
 ## 1. Answer
@@ -36,9 +36,9 @@ lines and its notice names the author.
 ```python
 import random
 BRIEF = "..."  # the stage-1 context
-ids = {"council-opus": "...", "council-neon": "...", "council-sol": "..."}  # members that answered → returned IDs
+ids = {"council-opus": "...", "council-neon": "...", "council-sol": "...", "council-argon": "..."}  # members that answered → returned IDs
 order = random.sample(list(ids), len(ids))
-label = {m: "ABC"[i] for i, m in enumerate(order)}
+label = {m: "ABCD"[i] for i, m in enumerate(order)}
 text = {m: read(f"agent://{ids[m]}:raw") for m in order}
 tasks = []
 for i, m in enumerate(order):

@@ -1,0 +1,263 @@
+advisor:
+  enabled: true
+  reviewInterval: 3
+bash:
+  gitGuard: true
+  patterns:
+    - match: 'git *push *--force-with-lease*'
+      approval: prompt
+    - match: '/usr/bin/git *push *--force-with-lease*'
+      approval: prompt
+  autoBackground:
+    enabled: true
+bashInterceptor:
+  enabled: true
+  patterns:
+    - pattern: '^\s*(?:(?:do|then|else)\s+)?(?:xargs\s+(?:-\S+\s+)*)?sed\s+(?:(?!-[a-zA-Z]*i|--in-place)(?:''[^'']*''|"[^"]*"|[^\s''"]\S*)\s+)*?(?:-[a-zA-Z]*i\S*|--in-place\S*)(?=\s|$)(?!(?:\s+-[a-zA-Z]+)*\s+(?:''[^'']*''|"[^"]*")(?:\s+["'']?/(?:tmp/|dev/null)[^\s;&|]*)+\s*(?:$|[;&|\n]))'
+      tool: edit
+      message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `sed -i`. An in-place edit passes only when every file it names is under /tmp."
+    - pattern: '^\s*(?:(?:do|then|else)\s+)?perl\s+(?:-\S+\s+)*?-[a-zA-Z0-9]*i(?:\.\S*)?(?=\s|$)(?!(?:\s+-[a-zA-Z0-9]+)*\s+(?:''[^'']*''|"[^"]*")(?:\s+["'']?/tmp/[^\s;&|]*)+\s*(?:$|[;&|\n]))'
+      tool: edit
+      message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `perl -i`. An in-place edit passes only when every file it names is under /tmp."
+checkpoint:
+  enabled: true
+commands:
+  enableClaudeProject: true
+  enableClaudeUser: true
+  enableOpencodeUser: false
+  enableOpencodeProject: false
+composer:
+  shape: box
+  predictions: false
+computer:
+  enabled: true
+defaultThinkingLevel: auto
+enabledModels:
+  - anthropic/claude-fable-5-2
+  - anthropic/claude-opus-5-5
+  - anthropic/claude-sonnet-5-5
+  - anthropic/claude-haiku-5-5
+  - antigravity-cli/claude-opus-5-5
+  - antigravity-cli/gemini-4-neon
+  - antigravity-cli/gemini-4-argon
+  - openai-codex/gpt-6-luna
+  - openai-codex/gpt-6.1-terra
+  - openai-codex/gpt-6.2-sol
+  - openai-codex/gpt-6.2-astra
+  - openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+  - openrouter/nvidia/nemotron-3.5-super-vl:free
+  - openrouter/nvidia/nemotron-3.5-lightning:free
+eval:
+  autoBackground:
+    enabled: true
+features:
+  unexpectedStopDetection: smart
+find:
+  enabled: on
+  hitThreshold: 0.3
+gc:
+  strip: true
+  compress: true
+  stale: true
+github:
+  enabled: true
+includeModelInPrompt: false
+lsp:
+  formatOnWrite: true
+  diagnosticsOnEdit: true
+memory:
+  backend: mnemopi
+mnemopi:
+  polyphonicRecall: true
+  enhancedRecall: true
+  recallRelevance: auto
+modelRoles:
+  advisor: openai-codex/gpt-6.2-sol:high
+  commit: openrouter/nvidia/nemotron-3.5-super-vl:free
+  default: anthropic/claude-opus-5-5
+  plan: anthropic/claude-opus-5-5:high
+  slow: anthropic/claude-opus-5-5:high
+  smol: openai-codex/gpt-6.2-sol:medium
+  task: openai-codex/gpt-6.2-sol
+  tiny: local/lfm2.5-230m
+  vision: openai-codex/gpt-6.1-terra
+  judge: openrouter/perplexity/pplx-decider-v1.3:free
+  memory: openrouter/nvidia/nemotron-3.5-super-vl:free
+  widget: openrouter/nvidia/nemotron-3.5-lightning:free
+  web: web/brave
+personality: pragmatic
+plan:
+  autosave: true
+providers:
+  tinyModelDevice: cuda
+  tinyModelDtype: default
+  openaiLiveSteering: true
+  openaiResponsesWebsockets: true
+retry:
+  usageAwareFallback: true
+  fallbackChains:
+    anthropic/*:
+      - anthropic-key/*
+    default:
+      - openai-codex/gpt-6.2-sol
+    slow:
+      - openai-codex/gpt-6.2-sol:xhigh
+    task:
+      - anthropic/claude-opus-5-5:medium
+    tiny: []
+    memory:
+      - openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      - local/qwen2.5-1.5b
+    commit:
+      - openai-codex/gpt-6-luna:low
+    widget:
+      - openai-codex/gpt-6.2-sol:low
+    judge:
+      - openrouter/liquid/d1.2-ultra
+    advisor:
+      - anthropic/claude-opus-5-5:medium
+    web:
+      - web/exa
+      - web/firecrawl
+      - web/parallel
+      - web/tinyfish
+      - web/tavily
+      - web/hosted
+      - web/public
+    vision:
+      - anthropic/claude-opus-5-5:medium
+      - openai-codex/gpt-6.2-sol
+      - openrouter/nvidia/nemotron-3.5-super-vl:free
+security:
+  enabled: true
+secrets:
+  enabled: true
+setupVersion: 3
+skills:
+  ignoredSkills:
+    - ponytail
+startup:
+  quiet: true
+  showSplash: false
+statusLine:
+  contextLine: embedded
+  leftSegments:
+    - path
+    - model
+    - mode
+  preset: custom
+  segmentOptions:
+    git:
+      showBranch: true
+      showStaged: false
+      showUnstaged: false
+      showUntracked: false
+    model:
+      showThinkingLevel: true
+    path:
+      abbreviate: true
+      maxLength: 30
+      stripWorkPrefix: true
+  separator: block
+  transparent: true
+  rightSegments:
+    - git
+    - context_pct
+    - token_rate
+  compactThinkingLevel: false
+task:
+  autoParallel: suggest
+  agentAdvisor:
+    task: "off"
+  agentModelOverrides:
+    sonic: openai-codex/gpt-6.2-sol:low
+    scout: openai-codex/gpt-6.1-terra:medium
+    task: "@task"
+    reviewer: openai-codex/gpt-6.2-sol
+    security-reviewer: openai-codex/gpt-6.2-astra:high
+    code-simplifier: "@smol"
+    error-analyzer: "@task"
+  enableEffort: true
+  isolation:
+    enabled: true
+  maxEffort: high
+  showResolvedModelBadge: true
+textVerbosity: low
+tier:
+  subagent: none
+title:
+  refreshOnReplan: false
+todo:
+  remindersMax: 0
+tools:
+  intentTracing: false
+  # Prompts before file tools touch these, and before commands run inside them.
+  # Not a sandbox: a shell command run elsewhere can still read them by path.
+  restrictedFolders:
+    # Keys and secret stores
+    - ~/.ssh
+    - ~/.gnupg
+    - ~/.password-store
+    - ~/.local/share/keyrings
+    - ~/.pki
+    # Cloud and CLI credentials
+    - ~/.aws
+    - ~/.config/gcloud
+    - ~/.config/gh
+    - ~/.docker/config.json
+    - ~/.config/cloudflare-zone-token
+    - ~/.convex/config.json
+    - ~/.sentryclirc
+    - ~/.posthog/credentials.json
+    # AI tool logins and omp's own secrets
+    - ~/.claude/.credentials.json
+    - ~/.codex/auth.json
+    - ~/.coderabbit/auth.json
+    - ~/.omp/agent/.env
+    - ~/.omp/agent/secret-placeholder.key
+    - ~/.omp/agent/agent.db
+    - ~/.omp/agent/agent.db-wal
+    # Browser profiles (cookies, saved logins)
+    - ~/.var/app/com.google.Chrome
+    - ~/.config/mozilla
+hideThinkingBlock: false
+browser:
+  headless: false
+disabledExtensions:
+  - rule:go-add-cleanup
+  - rule:go-bench-loop
+  - rule:go-exp-promoted
+  - rule:go-ioutil
+  - rule:go-join-hostport
+  - rule:go-new-expr
+  - rule:go-rand-v2
+  - rule:go-range-int
+  - skill:using-git-worktrees
+  - skill:writing-skills
+isolation:
+  backend: auto
+disabledProviders:
+  - claude
+  - codex
+  - claude-md
+codexResets:
+  autoRedeem5h: "no"
+  autoRedeemWeekly: "no"
+claudeResets:
+  autoRedeem5h: "no"
+  autoRedeemWeekly: "no"
+  autoRedeemFable: "no"
+display:
+  shimmer: classic
+dev:
+  autoqaConsent: granted
+ttsr:
+  repeatMode: after-gap
+  repeatGap: 150
+emojiAutocomplete: false
+update:
+  auto: true
+marketplace:
+  autoUpdate: auto
+tui:
+  textSizing: true
