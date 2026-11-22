@@ -1,8 +1,7 @@
 # Project review
 
 Review one project's guidance against what agents did since the last review.
-The root agent decides and edits; subagents gather evidence read-only and
-report. One run fits in one working session.
+You decide and edit; subagents gather evidence read-only and report.
 
 ## 1. Window
 
@@ -26,12 +25,13 @@ asks for it.
 
 ## 2. Gather evidence
 
-Run these in parallel as read-only subagents. They may have no shell: give
-each analyst its digest paths, and the auditor the output of `omp ttsr list`
-and `omp skill list --json`.
+Run these in parallel as read-only subagents, at most six in all. They may
+have no shell: give each analyst its digest paths, and the auditor the output
+of `omp ttsr list` and `omp skill list --json`.
 
-1. **Sessions.** Split the digests across analysts, about 1,500 digest lines
-   each (the index gives lines per digest). Each analyst follows
+1. **Sessions.** Split the digests across up to four analysts, about 1,500
+   digest lines each (the index gives lines per digest); beyond that, take
+   the newest sessions and say how many were left out. Each analyst follows
    [session-analysis.md](session-analysis.md).
 2. **Audit**, over all targets:
    - every path, command, symbol, link and setting resolves; every rule with a
@@ -49,16 +49,16 @@ and `omp skill list --json`.
      (`git log --since=<window start> --name-only -- <targets>`, plus
      uncommitted changes);
    - targets that describe code changed in the window;
-   - targets the session analysis or the audit implicates; start these when
-     those reports arrive.
+   - targets the session analysis or the audit implicates, started when those
+     reports arrive.
 
 ## 3. Decide and apply
 
 Read all the evidence. Reports are claims: before acting on a failure mode,
 open one of its cited transcript lines and check what its count counts. Then
-follow steps 3 to 5 of [SKILL.md](SKILL.md). For code fixes, use one fixer
+follow steps 3 and 4 of [SKILL.md](SKILL.md). For code fixes, use one fixer
 subagent per code area; fixers change only code and report guidance findings
-to the root.
+to you.
 
 ## 4. Report
 

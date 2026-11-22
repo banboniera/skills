@@ -5,44 +5,33 @@ description: Use to review omp guidance against real sessions, weekly, after rep
 
 # Evaluating guidance
 
-Review deployed agent guidance against what agents did with it, and fix what
-fails. Guidance earns its place only if agents act differently, and correctly,
-because of it. The evidence is real sessions, the code and primary sources.
-Two skills own the rest:
-
-- [writing-guidance](skill://writing-guidance): when guidance earns a place,
-  its form and home, the writing criteria, and the static checks.
-- [testing-guidance](skill://testing-guidance): trial runs, for a change to
-  behavior that review cannot settle.
+The goal is guidance that held up against what agents actually did: every
+target judged on evidence from real sessions, the code and primary sources,
+the failures it caused or missed fixed, and the fixes verified, in one pass.
+How to write and check guidance is [writing-guidance](skill://writing-guidance);
+measuring a change by trial runs is [testing-guidance](skill://testing-guidance).
 
 Take the path the request names:
 
 - **Project review:** a project's weekly review, "review this project's
   guidance", or after a model or omp upgrade. Follow [review.md](review.md).
 - **Scoped:** a named rule, skill, command or agent, one claim or finding, or a
-  repeated mistake. Follow the steps below for those targets only; no review
-  window, no project-wide analysis.
+  repeated mistake. Follow the steps below for those targets only.
 
 Apply the changes unless the request asks only for an assessment. From a
-project, change user-level guidance only when asked; otherwise report the
-finding.
+project, change user-level guidance only when asked; otherwise report it.
 
-## Guidance
-
-- Project: every `AGENTS.md`, and in `.omp/`: `RULES.md`, `WATCHDOG.md`,
-  `WATCHDOG.yml`, `rules/`, `skills/`, `commands/`, `agents/`, `extensions/`.
-- User level: the same names in `~/.omp/agent/`. They are often symlinks;
-  `realpath` shows the repository that owns them.
-
-Scripts, extensions and fixtures that belong to guidance are code: judge the
-text they show agents as guidance and the rest as code.
+**Targets:** in the project, every `AGENTS.md` and, under `.omp/`,
+`RULES.md`, `WATCHDOG.md`, `WATCHDOG.yml`, `rules/`, `skills/`, `commands/`,
+`agents/`, `extensions/`; at user level the same names in `~/.omp/agent/`,
+often symlinks (`realpath` shows the repository that owns them).
 
 ## Steps
 
 1. **Evidence.** Read the target, what loads it (trigger, description, index
    entry) and the code and configs it describes. To see how it behaved, or to
-   find a repeated mistake, digest the project's sessions whose digest
-   mentions it and read them per [session-analysis.md](session-analysis.md):
+   find a repeated mistake, digest the sessions that mention it and read them
+   per [session-analysis.md](session-analysis.md):
 
    ```sh
    python3 "$(realpath skill://evaluating-guidance/scripts/sessions.py)" \
@@ -57,21 +46,14 @@ text they show agents as guidance and the rest as code.
       technical premise against current official docs and primary sources. If
       it is wrong, correct it and list the code built under it.
    3. **Better?** A check or code change that makes the mistake impossible, a
-      home that reaches the agent before the decision, clearer wording
-      ([writing.md](skill://writing-guidance/writing.md)).
-3. **Decide** on the strongest fix that works, under the conditions of
-   writing-guidance steps 1 and 2: a check whose failure names the fix, a code
-   change that removes the trap, corrected guidance in its one home, or
-   deletion. A check lands before the prose it replaces is deleted. Write
-   changed guidance per writing-guidance step 3.
-4. **Fix code built on wrong guidance**, each fix with a test that proves the
-   correct behaviour. Follow the project's own rules for subagents and checks;
-   a check runs once per code state.
-5. **Verify** what changed: the static checks of writing-guidance step 4 for
-   every changed target, a trial per testing-guidance for a behavior change
-   review cannot settle, and the project's checks on code, once, on the final
-   tree.
-6. **Report.** Lead with the result. Then each change with its target and
+      home that reaches the agent before the decision, clearer wording.
+3. **Fix** per writing-guidance steps 3 to 5. A check lands before the prose
+   it replaces is deleted. Fix code built on wrong guidance too, each fix with
+   a test that proves the correct behavior.
+4. **Verify** every changed target with the writing-guidance checks, and run
+   the project's checks on changed code once, on the final tree. When review
+   cannot settle whether a behavior change works, recommend a trial.
+5. **Report.** Lead with the result. Then each change with its target and
    evidence, code fixes with their tests, findings not acted on with the
-   reason, and the checks run with their results. Leave the changes
-   uncommitted unless the user asks for a commit.
+   reason, and the checks with their results. Leave the changes uncommitted
+   unless the user asks for a commit.

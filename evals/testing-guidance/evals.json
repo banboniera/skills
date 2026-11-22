@@ -1,0 +1,50 @@
+{
+  "fixture": "fixture-shop",
+  "evals": [
+    {
+      "id": "measure-a-real-skill-for-free",
+      "repo": "~/Documents/Other/smotors",
+      "rev": "08bdeba",
+      "prompt": "is our writing-seo-copy skill actually worth keeping? set up whatever is needed to measure it properly, run anything that's free, and tell me what a real measurement would cost. don't spend money on model runs yet",
+      "expectations": [
+        "Writes an eval set of realistic requests for site copy (a page, a blog post, an FAQ, a title or meta description), each with a check or expectation an agent without the skill could fail",
+        "Writes trigger queries that should load writing-seo-copy and near misses that should not, including research or planning requests that belong to researching-seo-content",
+        "States how long the skill's description is and that the model sees it compressed or cut, or prints the line the model sees",
+        "Runs the free checks it set up (a dry run of the arms, the hint, or the deterministic checks) and reports their results",
+        "Gives a cost estimate from a counted number of sessions, says there is no keep-or-delete verdict without paid runs, and asks for approval before any",
+        "Starts no paid model runs"
+      ],
+      "checks": [
+        {"name": "no nested omp session ran", "run": "! find . -name '*.jsonl' -path '*session*' -size +0 | grep -q ."}
+      ]
+    },
+    {
+      "id": "test-a-rule-offline",
+      "prompt": "check that our no-console rule in .omp/rules fires where it should and stays quiet everywhere else. no paid runs",
+      "expectations": [
+        "Tests the rule offline on snippets it must fire on and near misses it must ignore, and reports each result",
+        "Reports that the rule misses console.warn and console.error",
+        "Reports that the rule ignores .tsx files or edits outside src/",
+        "Leaves .omp/rules/no-console.md unchanged, or asks before changing it",
+        "Starts no paid model runs"
+      ],
+      "checks": [
+        {"name": "no nested omp session ran", "run": "! find . -name '*.jsonl' -path '*session*' -size +0 | grep -q ."}
+      ]
+    }
+  ],
+  "triggers": [
+    {"query": "does our pdf-forms skill actually make the agent better at filling forms? I want numbers, not vibes", "should_trigger": true},
+    {"query": "benchmark the deploy skill against having no skill at all", "should_trigger": true},
+    {"query": "I rewrote the review command, check the new version isn't worse than the old one before I keep it", "should_trigger": true},
+    {"query": "how often does the agent actually pick up the migrations skill when someone asks about schema changes? test it", "should_trigger": true, "split": "test"},
+    {"query": "run the evals for writing-guidance again now that I changed its description", "should_trigger": true},
+    {"query": "compare two wordings of the commit message section in our git skill and tell me which one agents follow better", "should_trigger": true, "split": "test"},
+    {"query": "write unit tests for totalCents in src/cart.ts", "should_trigger": false},
+    {"query": "run the vitest suite and fix whatever fails", "should_trigger": false, "split": "test"},
+    {"query": "create a skill that teaches the agent how we deploy the shop to fly.io", "should_trigger": false},
+    {"query": "benchmark the checkout API, p95 latency got worse after yesterday's deploy", "should_trigger": false},
+    {"query": "review our agent guidance against last week's sessions and fix what keeps failing", "should_trigger": false, "split": "test"},
+    {"query": "evaluate this pull request and tell me if it's safe to merge", "should_trigger": false}
+  ]
+}

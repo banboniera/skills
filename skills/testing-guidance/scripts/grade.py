@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -40,17 +41,32 @@ CRITIQUE = {
 }
 
 
-def state(run_dir: Path) -> dict:
-    """What the grader sees of one run."""
+LOCKFILES = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb", "Cargo.lock", "poetry.lock", "uv.lock", "Gemfile.lock", "go.sum"}
+
+
+def without_lockfiles(diff: str) -> str:
+    """The diff with each lockfile's hunks replaced by one line, so real changes fit in the grader's view."""
+    parts = re.split(r"(?m)^(?=diff --git )", diff)
+    kept = []
+    for part in parts:
+        header = part.split("\n", 1)[0]
+        if Path(header.rsplit(" b/", 1)[-1]).name in LOCKFILES:
+            kept.append(f"{header}\n[lockfile changed; contents omitted]\n")
+        else:
+            kept.append(part)
+    return "".join(kept)
+
+
+def state(run_dir: Path, target: str) -> dict:
+    """What the grader sees of one run: never the arm, and the target's name masked."""
     metrics = json.loads((run_dir / "metrics.json").read_text())
     checks = json.loads((run_dir / "checks.json").read_text()) if (run_dir / "checks.json").exists() else []
-    diff = (run_dir / "diff.patch").read_text() if (run_dir / "diff.patch").exists() else ""
-    return {
-        "task": metrics.get("prompt", ""),
-        "final_answer": (run_dir / "final.md").read_text()[:20_000],
-        "changes": diff[:30_000] + ("\n[diff truncated]" if len(diff) > 30_000 else ""),
-        "checks": [{"name": c["name"], "passed": c["passed"]} for c in checks],
-    }
+    diff = without_lockfiles((run_dir / "diff.patch").read_text()) if (run_dir / "diff.patch").exists() else ""
+    mask = re.compile(re.escape(target), re.IGNORECASE)
+    final = mask.sub("[the guidance]", (run_dir / "final.md").read_text()[:20_000])
+    changes = mask.sub("[the guidance]", diff[:30_000]) + ("\n[diff truncated]" if len(diff) > 30_000 else "")
+    return {"task": metrics.get("prompt", ""), "final_answer": final, "changes": changes,
+            "checks": [{"name": c["name"], "passed": c["passed"]} for c in checks]}
 
 
 def question(text: str) -> dict:
@@ -77,7 +93,7 @@ async def grade(out: Path, judge_batch: Callable, completion: Callable, critique
         runs = [r["dir"] for r in index["runs"] if r["eval"] == ev_id and r.get("status") == "done"]
         if not expectations or not runs:
             continue
-        states = {d: state(out / d) for d in runs}
+        states = {d: state(out / d, index["name"]) for d in runs}
         questions = {f"e{i}": question(t) for i, t in enumerate(expectations)}
         batch = judge_batch(states, questions, intent=f"Grading {ev_id}")
         verdicts: dict[str, dict] = {}
@@ -86,6 +102,8 @@ async def grade(out: Path, judge_batch: Callable, completion: Callable, critique
                 raise RuntimeError(f"judge failed on {key}: {item.error}")
             verdicts[key] = item.answers
         for d in runs:
+            if d not in verdicts:
+                raise RuntimeError(f"the judge returned no verdict for {d}; rerun grade()")
             graded = []
             for i, text in enumerate(expectations):
                 p = float(verdicts[d][f"e{i}"]["bool"])
@@ -93,7 +111,7 @@ async def grade(out: Path, judge_batch: Callable, completion: Callable, critique
                 if UNCERTAIN[0] < p < UNCERTAIN[1]:
                     prompt = json.dumps({"state": states[d], "expectation": text})
                     second = await ask_slow(completion, prompt, RUBRIC + "the one in the input.", SECOND)
-                    entry.update(passed=bool(second["passed"]), evidence=second["evidence"])
+                    entry.update(passed=bool(second["passed"]), evidence=second["evidence"], second_opinion=True)
                 graded.append(entry)
             (out / d / "grading.json").write_text(json.dumps({"expectations": graded}, indent=2))
         if critique:

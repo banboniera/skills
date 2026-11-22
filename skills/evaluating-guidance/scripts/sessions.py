@@ -27,7 +27,7 @@ MARKER = "guidance-review-window"
 REVIEW = re.compile(MARKER + r" \d{4}-\d\d-\d\dT\d\d:\d\dZ (\d{4}-\d\d-\d\dT\d\d:\d\d)Z ([^`\n]+)")
 WRAPPER = re.compile(r"<(system-reminder|system-notice|EXTREMELY_IMPORTANT|file|memories|irc)\b.*?</\1>", re.S)
 ADVISORY = re.compile(r"<advisory\b[^>]*severity=\"(\w+)\"[^>]*>(.*?)</advisory>", re.S)
-INTERRUPT = re.compile(r"<system-interrupt [^>]*rule=\"([^\"]+)\"")
+INTERRUPT = re.compile(r"<system-(interrupt|reminder) [^>]*rule=\"([^\"]+)\"")
 MATCHED = re.compile(r"Matched: \"(.*?)\"\n")
 LOAD = re.compile(r"(skill|rule)://[^?#:\s]+")
 EDIT_HEAD = re.compile(r"^\[([^\]#]+)#", re.M)
@@ -158,10 +158,12 @@ def digest(path: Path, since: str, until: str, main: bool) -> tuple[list[str], d
         elif kind == "custom_message":
             content = str(entry.get("content"))
             if entry.get("customType") == "ttsr-injection":
-                interrupted = INTERRUPT.findall(content)
+                found = INTERRUPT.findall(content)
+                interrupted = [name for _, name in found]
+                verb = "interrupted" if any(tag == "interrupt" for tag, _ in found) else "reminded after the call"
                 matched = MATCHED.search(content)
                 hit = squeeze(matched[1], 160) if matched else "?"
-                add(stamp, number, "RULE", f"{', '.join(interrupted)} interrupted: {hit}")
+                add(stamp, number, "RULE", f"{', '.join(interrupted)} {verb}: {hit}")
             elif entry.get("customType") == "advisor":
                 for severity, note in ADVISORY.findall(content):
                     add(stamp, number, "ADVISOR", f"{severity}: {squeeze(note, 300)}")

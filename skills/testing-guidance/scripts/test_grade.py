@@ -47,16 +47,27 @@ class Grade(unittest.TestCase):
             (d / "checks.json").write_text("[]")
             runs.append({"eval": "e1", "arm": arm, "rep": 1, "status": "done", "dir": f"runs/e1/{arm}-1"})
         runs.append({"eval": "e1", "arm": "with", "rep": 2, "status": "skipped: budget"})
-        index = {"evals": {"e1": {"prompt": "Add a rule", "expectations": ["names the file", "cites evidence"]}}, "runs": runs}
+        index = {"name": "pdf-forms", "evals": {"e1": {"prompt": "Add a rule", "expectations": ["names the file", "cites evidence"]}}, "runs": runs}
         (self.out / "index.json").write_text(json.dumps(index))
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
     def test_state_hides_the_arm(self) -> None:
-        state = grade.state(self.out / "runs/e1/with-1")
+        state = grade.state(self.out / "runs/e1/with-1", "pdf-forms")
         self.assertEqual(set(state), {"task", "final_answer", "changes", "checks"})
         self.assertNotIn("with", json.dumps(state).replace("answer with", ""))
+
+    def test_state_masks_the_target_name_and_lockfile_noise(self) -> None:
+        d = self.out / "runs/e1/with-1"
+        (d / "final.md").write_text("Using the PDF-Forms skill, I fixed it.")
+        lock = "diff --git a/package-lock.json b/package-lock.json\n" + "+x\n" * 50_000
+        (d / "diff.patch").write_text(lock + "diff --git a/src/a.ts b/src/a.ts\n+fixed\n")
+        state = grade.state(d, "pdf-forms")
+        self.assertEqual(state["final_answer"], "Using the [the guidance] skill, I fixed it.")
+        self.assertIn("+fixed", state["changes"])
+        self.assertIn("package-lock.json", state["changes"])
+        self.assertLess(len(state["changes"]), 1000)
 
     def test_judge_verdicts_and_second_opinion_for_uncertain_ones(self) -> None:
         answers = {}

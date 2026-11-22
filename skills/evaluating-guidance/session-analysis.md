@@ -1,28 +1,16 @@
 # Session analysis
 
 Find the mistakes agents made in the assigned sessions, and which of them
-guidance could have prevented. This is error analysis on real transcripts:
-note, group, count ([Husain](https://hamel.dev/blog/posts/evals-faq/why-is-error-analysis-so-important-in-llm-evals-and-how-is-it-performed.html)).
+guidance could have prevented: note, group, count.
 
 ## Reading a digest
 
-`scripts/sessions.py` writes one digest per main session. The first line is
-the transcript path; every other line is `HH:MM:SS L<line> KIND text`:
-
-| Kind | Meaning |
-|---|---|
-| `USER` | user turn; `(mid-run)` when sent while the agent was working |
-| `AGENT` | the assistant text that turn answers |
-| `ABORT` | the user interrupted the agent |
-| `ERROR` | the turn failed, usually a provider error |
-| `RULE` | rules injected; an interrupt also shows the text that matched |
-| `ADVISOR`, `GATE` | advisor note; extension stop-gate message |
-| `LOAD` | read of a `skill://` or `rule://` URL |
-| `EDIT` | edit, write, `rm` or `mv` of a guidance file |
-
-`(failed)` after `LOAD` or `EDIT` means the tool call returned an error.
-Sections headed `### <agent>` hold a subagent's `RULE`, `LOAD`, `EDIT`, `ABORT`
-and `ERROR` lines.
+The first line is the transcript path; every other line is
+`HH:MM:SS L<line> KIND text`. `(mid-run)` marks a user turn sent while the
+agent was working; `GATE` is an extension stop-gate message; `RULE` lines say
+whether the rule interrupted the output (with the matched text) or was
+delivered after the call; `(failed)` after `LOAD` or `EDIT` means the tool
+call returned an error. Sections headed `### <agent>` hold a subagent's lines.
 
 A digest line is a lead. Before noting a failure, read the transcript around
 it: `read <transcript>:<line>`, or `read <transcript>:raw:<line>-<line>` for
@@ -59,7 +47,7 @@ observed failures. Runs of this skill count like any other session.
    - **wrong:** quote the guidance line and the action that followed it;
    - **not delivered:** the guidance existed but did not reach this agent
      before the action: a subagent without `AGENTS.md`, a skill with no `LOAD`
-     line, a rule that fired after the call;
+     line, a rule delivered after the call;
    - **ignored:** the guidance was in context (always loaded, or a `RULE` or
      `LOAD` line before the action) and the agent did otherwise;
    - **not guidance:** a model, tool or task problem; report it, change no

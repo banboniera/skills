@@ -13,6 +13,7 @@ import argparse
 import html as h
 import json
 import statistics
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,16 @@ def rate(items: list[bool]) -> float | None:
     return sum(items) / len(items) if items else None
 
 
+def per_rep(runs: list[dict], score: Callable[[dict], float | None]) -> dict:
+    """Mean ± stddev over reps of the per-rep mean across evals: the spread is run-to-run noise, not eval difficulty."""
+    by_rep: dict[int, list[float]] = {}
+    for r in runs:
+        value = score(r)
+        if value is not None:
+            by_rep.setdefault(r["rep"], []).append(value)
+    return stats([statistics.fmean(v) for _, v in sorted(by_rep.items())])
+
+
 def benchmark(out: Path) -> dict:
     index = json.loads((out / "index.json").read_text())
     kind, name, arms = index["kind"], index["name"], index["arms"]
@@ -53,17 +64,16 @@ def benchmark(out: Path) -> dict:
     summary: dict[str, Any] = {}
     for arm in arms:
         mine = [r for r in runs if r["arm"] == arm]
-        exp = [rate([e["passed"] for e in r["grading"]["expectations"]]) for r in mine if r["grading"]]
-        chk = [rate([c["passed"] for c in r["checks"]]) for r in mine]
         summary[arm] = {
             "runs": len(mine),
-            "graded": len(exp),
-            "expectations": stats([x for x in exp if x is not None]),
-            "checks": stats([x for x in chk if x is not None]),
+            "graded": sum(1 for r in mine if r["grading"]),
+            "expectations": per_rep(mine, lambda r: rate([e["passed"] for e in r["grading"]["expectations"]]) if r["grading"] else None),
+            "checks": per_rep(mine, lambda r: rate([c["passed"] for c in r["checks"]])),
             "seconds": stats([r["metrics"]["seconds"] for r in mine]),
             "cost": stats([r["metrics"]["cost"] for r in mine]),
             "tokens": stats([float(sum(r["metrics"]["tokens"].values())) for r in mine]),
             "loaded": rate([loaded(r["metrics"], kind, name) for r in mine]),
+            "touched": rate([bool(r["metrics"].get("touched_target")) for r in mine]),
             "failed_exits": sum(r["metrics"]["exit_code"] != 0 for r in mine),
         }
     items = []
@@ -82,20 +92,27 @@ def benchmark(out: Path) -> dict:
                 key = "text" if item_kind == "expectation" else "name"
                 per_arm[r["arm"]] += [x["passed"] for x in pool if x[key] == item]
             rates = {arm: rate(v) for arm, v in per_arm.items()}
-            items.append({"eval": ev, "kind": item_kind, "name": item, "rates": rates, "flag": flag(rates, per_arm)})
+            items.append({"eval": ev, "kind": item_kind, "name": item, "rates": rates, "flag": flag(per_arm)})
     return {"target": index["target"], "kind": kind, "name": name, "model": index.get("model"), "arms": summary,
             "items": items, "spent": index.get("spent"), "stopped": index.get("stopped"),
-            "references": index.get("references", []), "shadowed": index.get("shadowed_in_without", []),
+            "references": index.get("references", []), "hidden": index.get("hidden_in_without", []),
             "skipped": sum(r.get("status") != "done" for r in index["runs"])}
 
 
-def flag(rates: dict[str, float | None], per_arm: dict[str, list[bool]]) -> str | None:
-    """Why an expectation or check tells little: it varies by chance, or no arm differs."""
-    known = [v for v in rates.values() if v is not None]
-    if any(0 < (rate(v) or 0) < 1 for v in per_arm.values() if len(v) > 1):
+def flag(per_arm: dict[str, list[bool]]) -> str | None:
+    """Why an expectation or check tells little: no arm passes it, every arm does the same, or chance decides."""
+    rates = [r for r in (rate(v) for v in per_arm.values()) if r is not None]
+    if not rates:
+        return None
+    if max(rates) == 0:
+        return "never passes"
+    if len(rates) > 1 and len(set(rates)) == 1 and rates[0] == 1:
+        return "same in every arm"
+    spread = max(rates) - min(rates)
+    if spread < 0.5 and any(0 < (rate(v) or 0) < 1 for v in per_arm.values() if len(v) > 1):
         return "varies within an arm"
-    if len(known) > 1 and len(set(known)) == 1:
-        return "never passes" if known[0] == 0 else "same in every arm"
+    if len(rates) > 1 and spread == 0:
+        return "same in every arm"
     return None
 
 
@@ -125,18 +142,19 @@ def markdown(b: dict, delta: dict | None) -> str:
     if b["stopped"]:
         lines.append(f"Stopped early: {b['stopped']}")
     if b["references"]:
-        lines.append("Installed in every arm, without included, and pointing at the target: " + ", ".join(b["references"]))
-    if b["shadowed"]:
-        lines.append("Hidden in the without arm because they point at the target: " + ", ".join(b["shadowed"]))
-    lines += ["", "| Arm | Runs | Loaded | Expectations | Checks | Seconds | Cost USD | Tokens |", "|---|---|---|---|---|---|---|---|"]
+        lines.append("Guidance linking to the target: " + ", ".join(b["references"])
+                     + ("; hidden in the without arm: " + ", ".join(b["hidden"]) if b["hidden"] else "; installed in every arm"))
+    lines += ["", "| Arm | Runs | Loaded | Touched files | Expectations | Checks | Seconds | Cost USD | Tokens |",
+              "|---|---|---|---|---|---|---|---|---|"]
     for arm, s in b["arms"].items():
-        load = "-" if s["loaded"] is None else f"{s['loaded'] * 100:.0f}%"
-        lines.append(f"| {arm} | {s['runs']} | {load} | {fmt(s['expectations'], True)} | {fmt(s['checks'], True)} | "
-                     f"{fmt(s['seconds'])} | {fmt(s['cost'])} | {fmt(s['tokens'])} |")
+        lines.append(f"| {arm} | {s['runs']} | {pct(s['loaded'])} | {pct(s['touched'])} | {fmt(s['expectations'], True)} | "
+                     f"{fmt(s['checks'], True)} | {fmt(s['seconds'])} | {fmt(s['cost'])} | {fmt(s['tokens'])} |")
     if delta:
         lines += ["", "Change against the previous iteration (mean):", ""]
         for arm, d in delta.items():
             lines.append(f"- {arm}: " + ", ".join(f"{k} {v:+}" for k, v in d.items() if v is not None))
+    lines += ["", ("Expectations and checks: mean ± stddev across reps of the per-rep mean over evals. "
+                   "Touched files: runs that reached the target's files by path (in the without arm, a leak).")]
     flagged = [i for i in b["items"] if i["flag"]]
     if flagged:
         lines += ["", "## Flagged expectations and checks", ""]
@@ -145,7 +163,11 @@ def markdown(b: dict, delta: dict | None) -> str:
 
 
 def rates_text(rates: dict) -> str:
-    return ", ".join(f"{arm} {'-' if v is None else f'{v * 100:.0f}%'}" for arm, v in rates.items())
+    return ", ".join(f"{arm} {pct(v)}" for arm, v in rates.items())
+
+
+def pct(value: float | None) -> str:
+    return "-" if value is None else f"{value * 100:.0f}%"
 
 
 CSS = """body{font:14px/1.45 system-ui,sans-serif;margin:2em;max-width:1200px}table{border-collapse:collapse;margin:1em 0}
@@ -158,12 +180,12 @@ def html(b: dict, out: Path, delta: dict | None) -> str:
     parts = [f"<!doctype html><meta charset=utf-8><title>{e(b['name'])} benchmark</title><style>{CSS}</style>",
              f"<h1>{e(b['kind'])} {e(b['name'])}</h1><p>Model: {e(str(b['model'] or 'session default'))}; spent ${b['spent']}"
              + (f"; stopped early: {e(b['stopped'])}" if b["stopped"] else "") + "</p>",
-             "<table><tr><th>Arm<th>Runs<th>Loaded<th>Expectations<th>Checks<th>Seconds<th>Cost USD<th>Tokens"]
+             "<table><tr><th>Arm<th>Runs<th>Loaded<th>Touched files<th>Expectations<th>Checks<th>Seconds<th>Cost USD<th>Tokens"]
     for arm, s in b["arms"].items():
-        load = "-" if s["loaded"] is None else f"{s['loaded'] * 100:.0f}%"
         d = (delta or {}).get(arm, {})
-        change = "".join(f"<br><small>{k} {v:+}</small>" for k, v in d.items() if v)
-        parts.append(f"<tr><td>{e(arm)}{change}<td>{s['runs']}<td>{load}<td>{fmt(s['expectations'], True)}<td>{fmt(s['checks'], True)}"
+        change = "".join(f"<br><small>{k} {v:+}</small>" for k, v in d.items() if v is not None)
+        parts.append(f"<tr><td>{e(arm)}{change}<td>{s['runs']}<td>{pct(s['loaded'])}<td>{pct(s['touched'])}"
+                     f"<td>{fmt(s['expectations'], True)}<td>{fmt(s['checks'], True)}"
                      f"<td>{fmt(s['seconds'])}<td>{fmt(s['cost'])}<td>{fmt(s['tokens'])}")
     parts.append("</table><h2>Expectations and checks</h2><table><tr><th>Eval<th>Kind<th>Name<th>Pass rate by arm<th>Flag")
     for i in b["items"]:

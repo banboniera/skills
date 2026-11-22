@@ -1,34 +1,43 @@
 # Unattended loop with /autoresearch
 
 omp's `/autoresearch` edits, runs a harness, and keeps or reverts the edit by
-a metric. Use it when a script computes the metric: trigger accuracy
-(`trial.py triggers`) or the `with` arm's check pass rate (`trial.py run --arm
-with`). Judged expectations need an eval cell and stay in the manual loop.
-Each iteration is a paid benchmark: get approval for `max_iterations` × the
-cost of one iteration.
+a metric (`omp://autoresearch.md`). Use it when a script computes the metric:
+trigger accuracy (`trial.py triggers`) or the `with` arm's check pass rate
+(`trial.py run --arm with`). Judged expectations need an eval cell and stay in
+the manual loop.
 
-1. Work in a dedicated worktree on an `autoresearch/*` branch, because a
-   discarded attempt runs `git reset --hard` and `git clean` on the tree:
-   `git worktree add -b autoresearch/<name> ../<repo>-<name>`.
+The loop is bounded by two caps the user approves: `max_iterations` (at most
+10) and the total `--budget`. Budget them for `max_iterations + 2` harness
+runs: setup runs the harness once and the baseline once before the first
+edit. The driving session's own cost is outside `--budget`: start it with
+`omp --max-cost <USD>`.
+
+1. Work in a dedicated worktree on an `autoresearch/*` branch: a discarded
+   attempt runs `git reset --hard` and `git clean` on the tree.
+   `git worktree add -b autoresearch/<name> ../<repo>-<name>`
 2. Write `autoresearch.sh` in the worktree root. It runs under plain `bash`,
-   where `skill://` does not resolve, so use the absolute path from
-   `realpath skill://testing-guidance/scripts/trial.py`, and an `--out` outside
-   the worktree:
+   where `skill://` does not resolve: use the absolute path from
+   `realpath skill://testing-guidance/scripts/trial.py`, and an `--out` under
+   one fixed directory outside the worktree so every iteration shares one
+   ledger. Only the train split runs here; the test split runs once at the
+   end, so it stays held out.
 
    ```bash
    #!/usr/bin/env bash
    set -euo pipefail
-   OUT=/tmp/<name>-loop/$(date +%s)
-   for split in train test; do
-     python3 /abs/trial.py triggers --target skills/<name> --evals evals/<name>/evals.json \
-       --out "$OUT" --split "$split" --reps 3 --budget 5
-   done
+   python3 /abs/trial.py triggers --target skills/<name> --evals evals/<name>/evals.json \
+     --out "/abs/.workspaces/<name>/loop-$(date +%s)" --split train --reps 3 --budget <approved total>
    ```
 
-   `trial.py` prints `METRIC trigger_accuracy_<split>=…` (`run` prints
-   `METRIC checks_<arm>=…`).
-3. In an omp session in the worktree, run `/autoresearch` with the goal; set
-   the primary metric `trigger_accuracy_train` (higher), `max_iterations`, the
-   target file as the only scope path and the eval set as off-limits.
-4. Keep an attempt only when train rises and test does not fall. The user
-   reviews the kept diff and merges it by hand.
+   It prints `METRIC trigger_accuracy_train=…` and exits 1 once the budget is
+   spent.
+3. In an omp session in the worktree, run `/autoresearch` with the goal. Pass
+   `max_iterations` to every `init_experiment` call: a call without it removes
+   the cap. Primary metric `trigger_accuracy_train` (higher), the target file
+   as the only scope path, the eval set as off-limits.
+4. Keep an attempt only when the metric rises.
+5. The loop stops by itself at `max_iterations`. A run that exits 1 for the
+   budget is logged as `crash`, which reverts only that unmeasured edit; the
+   next turn is a resume: answer it with the report and call no tool.
+6. Run the test split once on the kept version and report both accuracies, the
+   kept diff and the money spent; the user merges the diff by hand.

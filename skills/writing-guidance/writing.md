@@ -21,24 +21,30 @@
 | produces output of the wrong shape | the output's parts, in order |
 | leaves out a required element | a slot in a template it fills in |
 | should act on a condition | a conditional on an observable fact |
-| knows the rule and skips it under pressure | a check or an interrupting rule; in prose, the rule with each excuse and its answer |
+| knows the rule and skips it under pressure | a check or an interrupting rule; in prose, the rule with each excuse it gave and the answer |
 | never saw the guidance | a home or trigger that reaches it |
 
 - Say what to do. A prohibition names the unwanted act and makes it more
   likely; keep "never" for hard guardrails and pair it with the alternative.
-- Give a real exception its own conditional; "unless it matters" reopens the
-  rule.
+- A real exception gets its own conditional. "Unless it matters" reopens the
+  rule, and "this does not apply to X" still suppresses X: restructure so the
+  rule cannot reach X.
 - Plain imperative, with the reason when it is not obvious; capitals and
   repeated MUST add nothing.
 - Fragile or order-dependent steps get the exact command or a script; steps
-  with several valid ways get the goal, the constraints and the done-criterion.
+  with several valid ways get the goal, the constraints and the criterion.
 - One complete example from a real case beats several fragments.
 
-## Steps
+## Procedures
 
-- Each step ends on a criterion the agent can check ("every caller listed with
-  file:line", not "understand the callers"). The criterion's demand sets how
+- Open with the goal: what is true when the work is done, so the agent knows
+  when to stop.
+- Each step ends on something the agent can check ("every caller listed with
+  file:line", not "understand the callers"); how much it demands sets how
   deep the agent digs.
+- Every repeat has a cap the agent can count (iterations, money, time) and
+  says what to do at the cap: report what is left. "Until it works" is not a
+  cap.
 - If a step is still rushed, move the later steps behind a context boundary:
   a subagent, or a file read only after the step.
 
@@ -48,8 +54,8 @@
   needs; move what only some paths need into a file one link deep, and say in
   the link sentence when to read it.
 - Keep a concept's rules and exceptions under one heading.
-- Use a word the model already knows (*tracer bullet*, *red*, *seam*) instead
-  of describing the behavior again at each site.
+- A word the model already knows (*tracer bullet*, *red*, *seam*) carries a
+  behavior in one token; reuse it instead of describing the behavior again.
 
 ## Where it belongs
 
@@ -58,7 +64,7 @@
 | Machine-decidable rule | Check whose failure names the fix | Whoever runs the check |
 | Few hard invariants | `RULES.md` | Every request, subagents included |
 | Project facts, boundaries and commands agents cannot infer; index of rules and skills | `AGENTS.md` | Main session and advisors, not subagents |
-| Judgment needed when touching specific code | Rule with `condition`, `astCondition` or `question`, narrowed by `scope` | Injected on a match |
+| Judgment needed when touching specific code | Triggered rule ([rules.md](rules.md)) | Injected on a match |
 | Knowledge some tasks need | Rule with only a `description` | Name and description listed; body read through `rule://<name>` |
 | Multi-step procedure a task calls for | `skills/<name>/SKILL.md` | Listed by its description; body read when chosen |
 | Procedure the user starts by name, with arguments | `commands/<name>.md` | The session that runs it |

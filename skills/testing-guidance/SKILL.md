@@ -5,10 +5,11 @@ description: Use to measure an omp skill, rule or command with trial runs, trigg
 
 # Testing guidance
 
-Run the same realistic requests as headless omp sessions in throwaway copies
-of a fixture, once per arm, and compare what the agents did. Arms: `without`
-(the target removed), `with` (the working copy), `old=<git-rev>`. Every run is
-a paid session; nothing paid starts without the user's approval.
+The goal is a verdict backed by runs: does this guidance make agents do the
+right thing more often than without it, and does it load when it should, for
+no more money than the user approved. Each eval request runs as a headless omp
+session in a throwaway copy of its fixture, once per arm: `without` (the
+target removed), `with` (the working copy) or `old=<git-rev>`.
 
 ```sh
 T="$(realpath skill://testing-guidance/scripts/trial.py)"   # --help lists subcommands and flags
@@ -16,32 +17,40 @@ R="$(realpath skill://testing-guidance/scripts/report.py)"
 ```
 
 1. **Eval set.** Write or extend `evals/<target-name>/evals.json` per
-   [evals.md](evals.md) before any run. Done when every case the guidance
-   handles has an eval that an agent without it would plausibly fail, plus
-   trigger queries for a listed skill or a description-only rule.
+   [evals.md](evals.md): one eval for each case the guidance handles, which
+   an agent without it could plausibly fail, plus trigger queries for a listed
+   skill or a description-only rule. Write the goal as numbers the benchmark
+   reports, for example "`with` loads the skill in every run, passes ≥ 80% of
+   checks and expectations, and beats `without`; trigger accuracy ≥ 85% on
+   the test split".
 2. **Free checks.** `hint` for a skill, `rules` for a triggered rule, and
-   `run --dry-run --budget 0` (each arm loads only its own copy). To compare
-   wordings of one passage, or to test a suspected no-op, use
-   [micro-tests.md](micro-tests.md) first.
+   `run --dry-run --budget 0` (every arm loads only its own copy).
 3. **Approval.** New guidance runs `without` and `with`; changed guidance runs
-   `old=HEAD` and `with`, plus `without` to ask whether it is needed at all.
-   Pilot with `run --limit 1 --reps 1 --budget 5`. Estimate: pilot cost per
-   run × evals × arms × reps (default 3), plus trigger queries × reps × one
-   short session. `ask` the user to approve the estimate, the model (the
-   session default unless they name one) and the `--budget`.
-4. **Run** in the background:
+   `old=HEAD` and `with`, plus `without` when the question is whether it is
+   needed at all. Count the sessions of one iteration (evals × arms × reps,
+   default 3, plus trigger queries × reps) and ask the user to approve, in one
+   question: the eval prompts and expectations, the goal, the model (the
+   session default unless they name one), the number of iterations (default
+   3) and one total budget. Wording micro-tests ([micro-tests.md](micro-tests.md))
+   cost cents and need the same approval.
+4. **Run** in the background with `--budget <approved total>`. The budget
+   covers every run whose `--out` shares a parent (`.workspaces/<name>/`,
+   ledger `spend.jsonl`); after a further approval, pass the old total plus the
+   new amount. Pilot first (`run --limit 1 --reps 1`) and compare its cost per
+   session with your estimate; if the plan no longer fits, ask again before
+   the full run.
 
    ```sh
    python3 "$T" run --target <path> --evals <evals.json> \
-     --out .workspaces/<name>/iteration-<N> --budget <USD> [--arm …] [--shadow-references]
+     --out .workspaces/<name>/iteration-<N> --budget <USD> [--arm …] [--hide-references]
    python3 "$T" triggers --target <path> --evals <evals.json> \
      --out .workspaces/<name>/iteration-<N> --split train --budget <USD>
    ```
 
-   A run stops when the budget is spent, an arm's isolation fails, or a file
-   outside the trial changes. Read the reason before rerunning.
-5. **Grade** in a Python eval cell, then aggregate with
-   `python3 "$R" <iteration dir> [--previous <iteration dir>]`:
+   A run exits 1 when the budget is spent or reserved, an arm loads the wrong
+   copy, or a file outside the trial changes; fix the cause before rerunning.
+5. **Grade** in a Python eval cell (judge calls, a few cents, outside the
+   ledger), then aggregate with `python3 "$R" <iteration dir> [--previous <dir>]`:
 
    ```python
    from pathlib import Path
@@ -50,33 +59,35 @@ R="$(realpath skill://testing-guidance/scripts/report.py)"
    ```
 
 6. **Analyze** every flag in `benchmark.md` against the runs:
-   - `with` loaded below 100%: fix the trigger first; content results mean
+   - `with` loads below 100%: fix the trigger first; content results mean
      little until the guidance loads.
+   - A trigger miss prints the skills loaded in order: a near miss that loads
+     the target only after a skill that links to it routed correctly.
+   - `without` touched the target's files: the baseline leaked; rerun with
+     `--hide-references` or read those runs as contaminated.
    - `with` no better than `without`: the guidance is a no-op, or the evals
      miss its failure.
-   - "same in every arm": the item does not discriminate, or the model does it
-     anyway. "varies within an arm": more reps or a sharper item. "never
-     passes": a wrong item, or guidance that does not reach the agent.
-   - `eval_feedback.json` lists weak and missing expectations; fix the eval set
-     for the next iteration.
+   - "same in every arm", "never passes", "varies within an arm": the item
+     does not separate the arms, cannot pass, or needs more reps.
+   - `eval_feedback.json` lists weak and missing expectations: fix the eval
+     set before the next iteration, and rerun the previous version on it as
+     `old=<rev>` instead of comparing with older numbers.
    - Read the transcripts (`session/*.jsonl`) of failing and costly runs for
-     steps the guidance wastes; code every run rewrote belongs in the skill's
-     `scripts/`.
-
-   With 3 reps, a difference within one standard deviation is noise.
-7. **Review** the table and `report.html` with the user; `ask` for feedback
-   where outputs need human judgment.
-8. **Iterate.** Change the guidance per
-   [writing-guidance](skill://writing-guidance), generalizing from the failures
-   rather than fitting the prompts, and rerun into `iteration-<N+1>` with
-   `--previous`. Stop when the user is satisfied, `with` passes what matters,
-   or an iteration changes nothing. For a metric a script computes,
-   [loop.md](loop.md) runs the loop unattended.
+     steps the guidance wastes; code every run rewrote belongs in `scripts/`.
+7. **Iterate or stop.** When the request is to check or measure, stop here:
+   the guidance stays as it is, and the report proposes the changes. When it
+   is to improve the guidance, stop once the goal is met, the budget is spent,
+   the approved iterations have run, or the last change did not raise the goal
+   metric; otherwise change the guidance per
+   [writing-guidance](skill://writing-guidance), generalizing from the
+   failures instead of fitting the prompts, and run the next iteration from
+   step 4. Then run the test split of the trigger queries once. For a metric a
+   script computes, [loop.md](loop.md) runs this loop unattended.
 
 ## Report
 
-The verdict first: whether the guidance changes behavior, by how much (pass
-and loaded rates per arm), and the money spent. Then the benchmark table, each
-flag with its explanation, the changes per iteration, what stays unmeasured
-(`question` rules, outputs only a person can judge, other models), and the
-path to `report.html`.
+The verdict first: goal met or not, how the arms differ (loaded, pass rates),
+the money spent of the budget, and why the iterations stopped. Then the
+benchmark table, each flag with its explanation, the changes per iteration,
+what stays unmeasured (`question` rules, outputs only a person can judge,
+other models), and the path to `report.html`.

@@ -2,14 +2,31 @@
   "fixture": "fixture-shop",
   "evals": [
     {
+      "id": "mistake-an-existing-rule-covers",
+      "repo": "~/Documents/HuggingCar/api",
+      "rev": "575c1429",
+      "prompt": "agents in this repo keep calling .set() on many-to-many relations in serializers instead of set_relation. I've fixed that by hand three times now. make it stop",
+      "expectations": [
+        "Names .omp/rules/serializer-scoped-relations.md as the existing omp rule for this mistake and adds no second omp rule for it (a lint, test or system check that enforces it counts as a check, not a rule)",
+        "Runs the existing rule on a sample edit, for example with omp ttsr test, and reports whether it fires",
+        "Rests its explanation of why the mistake got through on something it observed (a rule test, a reproduced edit), not on a guess",
+        "Leaves existing guidance where it is unless it shows why moving it helps"
+      ],
+      "checks": [
+        {"name": "one rule covers .set()", "run": "test \"$(grep -l '\\.set(' .omp/rules/*.md | wc -l)\" -eq 1"},
+        {"name": "the rule still fires in serializers", "run": "printf 'instance.tags.set(tags)' | omp ttsr test --rule .omp/rules/serializer-scoped-relations.md --source tool --tool edit --path src/manager_api/documents/serializers.py --json --file - | jq -e '.triggered | length > 0' >/dev/null"}
+      ]
+    },
+    {
       "id": "rule-from-repeated-mistake",
       "prompt": "agents in this repo keep silencing type errors with `as any` in src/ (see parseLine in src/cart.ts). I've corrected that three times this week. make sure it stops happening",
       "expectations": [
         "Adds a triggered rule under .omp/rules (condition or astCondition), not only prose in AGENTS.md",
+        "The rule interrupts the edit and keeps firing: interruptMode always and repeatMode always, or explains why the defaults already do",
         "The rule is scoped to TypeScript edits or writes rather than every tool call and all prose",
         "The rule body tells the agent what to do instead, such as narrowing the unknown value with a type guard or a typed parser",
         "The rule fires on `as unknown as T` and on a `: any` annotation in src/, not only on `as any`",
-        "Adds no dependencies, lockfiles or tool configuration the user did not ask for, or asks before doing so"
+        "Adds no dependency, lockfile, tsconfig or package.json script the user did not ask for; a missing type-check setup is reported instead"
       ],
       "checks": [
         {"name": "a rule fires on `as any` in a src/ edit", "run": "for r in .omp/rules/*.md; do omp ttsr test --rule \"$r\" --source tool --tool edit --path src/a.ts --json 'const v = raw as any' | jq -e '.triggered | length > 0' >/dev/null && exit 0; done; exit 1"},
@@ -20,8 +37,9 @@
       "id": "skill-never-picked",
       "prompt": "the pdf-forms skill in .omp/skills never gets used when I ask the agent to fill in a PDF form. fix it",
       "expectations": [
-        "Rewrites the description of .omp/skills/pdf-forms/SKILL.md to say when to use the skill, in words a request to fill a PDF form would contain",
-        "Leaves the skill's steps intact"
+        "The new description is 100 characters or fewer and states when to use the skill, in words a request to fill a PDF form would contain",
+        "Leaves the skill's steps intact",
+        "Says the new description reaches the agent in the next session, or that it is not yet confirmed that agents pick the skill"
       ],
       "checks": [
         {"name": "description is 100 characters or fewer and names forms", "run": "python3 -c \"import re,sys; t=open('.omp/skills/pdf-forms/SKILL.md').read(); f=t.split('\\n---',1)[0]; m=re.search(r'^description:\\s*(.*(?:\\n[ \\t]+.*)*)', f, re.M); d=' '.join(m.group(1).replace('>-','').split()) if m else ''; sys.exit(0 if 0 < len(d) <= 100 and 'form' in d.lower() else 1)\""},
@@ -34,6 +52,8 @@
       "expectations": [
         "Creates .omp/commands/changelog.md whose body uses the version argument through $1 or $ARGUMENTS",
         "The command says what to do when no version is given",
+        "The command says how to find the previous tag and what to do when there is none",
+        "The command writes release notes only: no tag, commit or push",
         "The frontmatter has a description and an argument-hint"
       ],
       "checks": [

@@ -62,11 +62,24 @@ class Benchmark(unittest.TestCase):
         self.assertEqual(with_["runs"], 2)
         self.assertEqual(b["skipped"], 1)
 
-    def test_flags_name_assertions_that_do_not_discriminate(self) -> None:
+    def test_flags_name_items_that_do_not_discriminate(self) -> None:
         flags = {(f["eval"], f["kind"], f["name"]): f["flag"] for f in report.benchmark(self.out)["items"]}
         self.assertEqual(flags[("e1", "expectation", "x1")], "same in every arm")
         self.assertIsNone(flags[("e1", "expectation", "x0")])
-        self.assertEqual(flags[("e1", "check", "c0")], "varies within an arm")
+
+    def test_flag_rules(self) -> None:
+        self.assertIsNone(report.flag({"without": [True, False, False], "with": [True, True, True]}), "with clearly ahead")
+        self.assertEqual(report.flag({"without": [True, False], "with": [False, True]}), "varies within an arm")
+        self.assertEqual(report.flag({"with": [False, False, False]}), "never passes")
+        self.assertEqual(report.flag({"without": [True, True], "with": [True, True]}), "same in every arm")
+
+    def test_spread_is_across_reps_not_across_evals(self) -> None:
+        none = {"skills": [], "rules": [], "command_expanded": False}
+        runs = [make_run(self.out, ev, "with", rep, [ev == "easy"], [], none, 1.0) for ev in ("easy", "hard") for rep in (1, 2, 3)]
+        index = {"target": "/x", "kind": "skill", "name": "pdf", "arms": ["with"], "model": None,
+                 "evals": {e: {"prompt": "p", "expectations": ["x0"]} for e in ("easy", "hard")}, "runs": runs, "spent": 6.0, "stopped": ""}
+        (self.out / "index.json").write_text(json.dumps(index))
+        self.assertEqual(report.benchmark(self.out)["arms"]["with"]["expectations"], {"mean": 0.5, "stddev": 0.0, "n": 3})
 
     def test_delta_against_previous_iteration(self) -> None:
         current = report.benchmark(self.out)
