@@ -177,6 +177,8 @@ task:
     security-reviewer: openai-codex/gpt-6.2-astra:high
     code-simplifier: "@smol"
     error-analyzer: "@task"
+  agentSoftRequestBudget:
+    council-argon: 100
   enableEffort: true
   isolation:
     enabled: true

@@ -1,39 +1,44 @@
 ---
 name: council
 description: >-
-  Gets independent answers from the council models, has them review each other
-  anonymously, then decides and acts on the evidence. Use for /skill:council or
-  when a procedure such as /implement calls for a council review.
+  Independent answers from the council models, anonymous cross-review, then a
+  decision on the evidence. Run with /skill:council or from /implement.
 disable-model-invocation: true
 ---
 
 # Council
 
-The request is the text the skill was invoked with, or the one a calling
-procedure supplies. If it is empty, ask what the council should decide and
-stop.
+Goal: a decision backed by at least two independent answers, their anonymous
+cross-reviews, and your own check of every claim it turns on.
 
-You chair the council. Its members are the agents `council-opus`,
-`council-neon`, `council-sol` and `council-argon`. Their files pin model and thinking level, so
-never set `model` or `effort` on their task items.
+The request is the skill's argument or the text a calling procedure supplies.
+If empty, ask what the council should decide and stop.
+
+You chair. Members: `council-opus`, `council-neon`, `council-sol`,
+`council-argon`. Their files set model, thinking level and answer shape; never
+set `model` or `effort` on their task items.
 
 ## 1. Answer
 
-Make one `task` call with one item per member and the task
-`Answer the request.` The shared `context` is the brief: the request plus what
-members cannot discover alone (conversation decisions, constraints, paths,
-repository rules). Leave out your own view so members do not anchor on it.
+One `task` call, one item per member, task `Answer the request.` The shared
+`context` is the brief: the request plus what members can't find alone
+(decisions, constraints, paths, repo rules). Leave out your view. Say what the
+answer must cover, not its wording: an exact phrase or one-line format makes
+members drop their evidence.
 
-Retry a failed member once. With fewer than two answers, report the failure and
-stop. Use the agent IDs the call returns; omp renames duplicate names. Send a
-member nothing while it answers: its reply to you becomes its latest output,
-and `agent://<id>:raw` then returns that reply instead of the answer.
+- Retry a transient failure once; a member out of quota stays out.
+- When the others are done and a member still runs after as long again as the
+  slowest of them, stop it (`proc://<id>/kill`) and go on.
+- Fewer than two answers: report the failure and stop.
+- Use the returned agent IDs; omp renames duplicates.
+- Send a running member nothing: its reply would replace its answer in
+  `agent://<id>:raw`.
 
 ## 2. Review
 
-Build the review call in Python eval, so reviewers get each answer byte for
-byte; retyped answers lost content in testing. Without `:raw`, `read` cuts long
-lines and its notice names the author.
+Build the call in Python eval so reviewers get each answer byte for byte;
+retyped answers lost content, and `read` without `:raw` cuts lines and names
+the author.
 
 ```python
 import random
@@ -53,31 +58,31 @@ print(label)
 await tool.task({"context": BRIEF, "tasks": tasks})
 ```
 
-Each reviewer gets only the other answers, and each answer appears once in
-every position.
+Each reviewer sees only the others' answers, each answer once in every
+position. Step 1's stop rule applies.
 
 ## 3. Decide
 
-Reviews are evidence, not votes. Check each reported error against the original
-answer, and verify yourself any disagreement that would change the decision. If
-reviews are missing, verify the decisive claims yourself.
+Reviews are evidence, not votes. Check each reported error against its answer
+and verify any disagreement that would change the decision; without reviews,
+verify the decisive claims yourself. Done when every deciding claim is verified
+or reported as unverified.
 
 ## 4. Act
 
 When the request calls for changes:
 
-- **Obvious** (one correct change, settled by evidence, within the request):
-  make it, or send it with `write agent://<id>` to the member whose answer
-  covered it, since that agent keeps its context. One owner per file; verify
-  the result.
-- **Otherwise** (a product or design choice, conflicting evidence, a breaking,
-  cross-repository or irreversible change): use `ask` with the options and
-  their evidence, your recommendation preselected.
+- **Obvious** (one correct change, settled by evidence, in scope): make it, or
+  send it with `write agent://<id>` to the member whose answer covered it. One
+  owner per file; verify the result.
+- **Otherwise** (design choice, conflicting evidence, breaking,
+  cross-repository or irreversible): `ask` with options and evidence, your
+  recommendation preselected.
 
-Never commit unless the user asked.
+Commit only if the user asked.
 
 ## 5. Report
 
-Answer in the format the request asks for. Then add only what the user needs:
-dissent that changed or qualifies the decision, missing members or reviews, and
-changes made or awaiting the user. Omit agreement and settled side points.
+Answer in the requested format, then add only dissent that changed or
+qualifies the decision, missing members or reviews, and changes made or
+pending.
