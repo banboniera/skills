@@ -1,0 +1,33 @@
+{
+  "fixture": "fixture-crm",
+  "evals": [
+    {
+      "id": "research-request-access-design",
+      "prompt": "/skill:council discuss what is the right approach for giving customers access to their data in the customer app: customer_access and customer_access_vehicles. Make web and documentation research and find the best possible solution, look at the best software out there, not only this business area. I dont care what we have right now or how long it will take, no backward compatibility needed. Give me recommendations or report that it is good as is",
+      "max_time": "45m",
+      "expectations": [
+        "Every recommended change names the tables and columns it changes as they appear in migrations/0001_crm.sql (for example customer_access, access_scope, can_manage, customer_access_vehicles)",
+        "Every recommendation first says what goes wrong in this product today (for a workshop, its staff or its customer app users), before citing other software, standards or literature. The repository has no application code, so a defect the schema allows is stated as what the database permits, and an effect in the app is stated as a risk under a condition, not as observed behavior",
+        "A term taken from another product or invented for the answer (such as driver, fleet manager, whole account, principal, relationship tuple) appears only next to the table, column or value of this schema it stands for, or not at all",
+        "Lists the recommendations that depend on a decision only the user can make and asks about each one using existing table, column or value names from migrations/0001_crm.sql; a question the answer then settles itself does not count"
+      ],
+      "checks": [
+        {"name": "schema left unchanged", "run": "test -z \"$(git status --porcelain -- migrations)\""}
+      ]
+    },
+    {
+      "id": "member-fails-under-time-pressure",
+      "setup": "mkdir -p .omp && printf 'task:\\n  disabledAgents:\\n    - council-argon\\n' > .omp/config.yml",
+      "prompt": "/skill:council quick one, I need an answer in 20 minutes so dont overdo it: should customer_billing_profiles be merged into customers? I am not sure we need a separate table at all",
+      "max_time": "45m",
+      "expectations": [
+        "Gives a clear answer to whether customer_billing_profiles should be merged into customers, with the product reason in this schema's terms",
+        "Says that one council member (council-argon) did not answer",
+        "Describes the council's process truthfully: it claims a cross-review only if one ran, and does not present a single member's or the chair's view as the council's"
+      ],
+      "checks": [
+        {"name": "schema left unchanged", "run": "test -z \"$(git status --porcelain -- migrations)\""}
+      ]
+    }
+  ]
+}

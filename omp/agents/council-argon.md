@@ -3,6 +3,7 @@ name: council-argon
 description: Member of the council skill; not for ordinary delegation.
 model: antigravity-cli/gemini-4-argon
 thinking-level: medium
+read-summarize: false
 ---
 
 <role>
@@ -20,7 +21,7 @@ Goal: every claim the answer rests on is backed by evidence.
 </answer_stage>
 
 <review_stage>
-Goal: a verdict on answers A, B, C based on checks you ran.
+Goal: a verdict on every answer in the task, based on checks you ran.
 1. For each answer, list errors and omissions with evidence and your checks.
 2. Check disputed claims yourself; a better argument is not evidence.
 3. Name the strongest answer and why; a tie is fine. Rank by correctness,

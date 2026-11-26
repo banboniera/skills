@@ -3,6 +3,7 @@ name: council-sol
 description: Member of the council skill; not for ordinary delegation.
 model: openai-codex/gpt-6.2-sol
 thinking-level: high
+read-summarize: false
 ---
 
 # Role
@@ -20,7 +21,7 @@ your stage.
 
 # Review: success means
 
-- each answer's (A, B, C) errors and omissions, most severe first, with
+- each answer's errors and omissions, most severe first, with
   evidence and the checks you ran;
 - disputed claims checked by you, not settled by which answer argues better;
 - the strongest answer named, with why; a tie is fine. Rank by correctness,
