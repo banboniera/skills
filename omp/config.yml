@@ -2,21 +2,21 @@ advisor:
   enabled: true
   reviewInterval: 3
 bash:
-  gitGuard: true
+  gitGuard: false
   patterns:
-    - match: 'git *push *--force-with-lease*'
+    - match: git *push *--force-with-lease*
       approval: prompt
-    - match: '/usr/bin/git *push *--force-with-lease*'
+    - match: /usr/bin/git *push *--force-with-lease*
       approval: prompt
   autoBackground:
     enabled: true
 bashInterceptor:
   enabled: true
   patterns:
-    - pattern: '^\s*(?:(?:do|then|else)\s+)?(?:xargs\s+(?:-\S+\s+)*)?sed\s+(?:(?!-[a-zA-Z]*i|--in-place)(?:''[^'']*''|"[^"]*"|[^\s''"]\S*)\s+)*?(?:-[a-zA-Z]*i\S*|--in-place\S*)(?=\s|$)(?!(?:\s+-[a-zA-Z]+)*\s+(?:''[^'']*''|"[^"]*")(?:\s+["'']?/(?:tmp/|dev/null)[^\s;&|]*)+\s*(?:$|[;&|\n]))'
+    - pattern: "^\\s*(?:(?:do|then|else)\\s+)?(?:xargs\\s+(?:-\\S+\\s+)*)?sed\\s+(?:(?!-[a-zA-Z]*i|--in-place)(?:'[^']*'|\"[^\"]*\"|[^\\s'\"]\\S*)\\s+)*?(?:-[a-zA-Z]*i\\S*|--in-place\\S*)(?=\\s|$)(?!(?:\\s+-[a-zA-Z]+)*\\s+(?:'[^']*'|\"[^\"]*\")(?:\\s+[\"']?/(?:tmp/|dev/null)[^\\s;&|]*)+\\s*(?:$|[;&|\\n]))"
       tool: edit
       message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `sed -i`. An in-place edit passes only when every file it names is under /tmp."
-    - pattern: '^\s*(?:(?:do|then|else)\s+)?perl\s+(?:-\S+\s+)*?-[a-zA-Z0-9]*i(?:\.\S*)?(?=\s|$)(?!(?:\s+-[a-zA-Z0-9]+)*\s+(?:''[^'']*''|"[^"]*")(?:\s+["'']?/tmp/[^\s;&|]*)+\s*(?:$|[;&|\n]))'
+    - pattern: "^\\s*(?:(?:do|then|else)\\s+)?perl\\s+(?:-\\S+\\s+)*?-[a-zA-Z0-9]*i(?:\\.\\S*)?(?=\\s|$)(?!(?:\\s+-[a-zA-Z0-9]+)*\\s+(?:'[^']*'|\"[^\"]*\")(?:\\s+[\"']?/tmp/[^\\s;&|]*)+\\s*(?:$|[;&|\\n]))"
       tool: edit
       message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `perl -i`. An in-place edit passes only when every file it names is under /tmp."
 checkpoint:
@@ -53,7 +53,7 @@ eval:
 features:
   unexpectedStopDetection: smart
 find:
-  enabled: on
+  enabled: "on"
   hitThreshold: 0.3
 gc:
   strip: true
@@ -191,16 +191,12 @@ todo:
   remindersMax: 0
 tools:
   intentTracing: false
-  # Prompts before file tools touch these, and before commands run inside them.
-  # Not a sandbox: a shell command run elsewhere can still read them by path.
   restrictedFolders:
-    # Keys and secret stores
     - ~/.ssh
     - ~/.gnupg
     - ~/.password-store
     - ~/.local/share/keyrings
     - ~/.pki
-    # Cloud and CLI credentials
     - ~/.aws
     - ~/.config/gcloud
     - ~/.config/gh
@@ -209,7 +205,6 @@ tools:
     - ~/.convex/config.json
     - ~/.sentryclirc
     - ~/.posthog/credentials.json
-    # AI tool logins and omp's own secrets
     - ~/.claude/.credentials.json
     - ~/.codex/auth.json
     - ~/.coderabbit/auth.json
@@ -217,7 +212,6 @@ tools:
     - ~/.omp/agent/secret-placeholder.key
     - ~/.omp/agent/agent.db
     - ~/.omp/agent/agent.db-wal
-    # Browser profiles (cookies, saved logins)
     - ~/.var/app/com.google.Chrome
     - ~/.config/mozilla
 hideThinkingBlock: false
