@@ -2,36 +2,58 @@ advisor:
   enabled: true
   reviewInterval: 3
 bash:
-  gitGuard: false
   patterns:
-    - match: git *push *--force-with-lease*
-      approval: prompt
-    - match: /usr/bin/git *push *--force-with-lease*
-      approval: prompt
-  autoBackground:
-    enabled: true
+    - approval: prompt
+      match: git *push *--force-with-lease*
+    - approval: prompt
+      match: /usr/bin/git *push *--force-with-lease*
 bashInterceptor:
   enabled: true
   patterns:
-    - pattern: "^\\s*(?:(?:do|then|else)\\s+)?(?:xargs\\s+(?:-\\S+\\s+)*)?sed\\s+(?:(?!-[a-zA-Z]*i|--in-place)(?:'[^']*'|\"[^\"]*\"|[^\\s'\"]\\S*)\\s+)*?(?:-[a-zA-Z]*i\\S*|--in-place\\S*)(?=\\s|$)(?!(?:\\s+-[a-zA-Z]+)*\\s+(?:'[^']*'|\"[^\"]*\")(?:\\s+[\"']?/(?:tmp/|dev/null)[^\\s;&|]*)+\\s*(?:$|[;&|\\n]))"
+    - message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `sed -i`. An in-place edit passes only when every file it names is under /tmp."
+      pattern: "^\\s*(?:(?:do|then|else)\\s+)?(?:xargs\\s+(?:-\\S+\\s+)*)?sed\\s+(?:(?!-[a-zA-Z]*i|--in-place)(?:'[^']*'|\"[^\"]*\"|[^\\s'\"]\\S*)\\s+)*?(?:-[a-zA-Z]*i\\S*|--in-place\\S*)(?=\\s|$)(?!(?:\\s+-[a-zA-Z]+)*\\s+(?:'[^']*'|\"[^\"]*\")(?:\\s+[\"']?/(?:tmp/|dev/null)[^\\s;&|]*)+\\s*(?:$|[;&|\\n]))"
       tool: edit
-      message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `sed -i`. An in-place edit passes only when every file it names is under /tmp."
-    - pattern: "^\\s*(?:(?:do|then|else)\\s+)?perl\\s+(?:-\\S+\\s+)*?-[a-zA-Z0-9]*i(?:\\.\\S*)?(?=\\s|$)(?!(?:\\s+-[a-zA-Z0-9]+)*\\s+(?:'[^']*'|\"[^\"]*\")(?:\\s+[\"']?/tmp/[^\\s;&|]*)+\\s*(?:$|[;&|\\n]))"
+    - message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `perl -i`. An in-place edit passes only when every file it names is under /tmp."
+      pattern: "^\\s*(?:(?:do|then|else)\\s+)?perl\\s+(?:-\\S+\\s+)*?-[a-zA-Z0-9]*i(?:\\.\\S*)?(?=\\s|$)(?!(?:\\s+-[a-zA-Z0-9]+)*\\s+(?:'[^']*'|\"[^\"]*\")(?:\\s+[\"']?/tmp/[^\\s;&|]*)+\\s*(?:$|[;&|\\n]))"
       tool: edit
-      message: "Use the `edit` tool for repository files (`ast_edit` for the same structural change across many files), not `perl -i`. An in-place edit passes only when every file it names is under /tmp."
+browser:
+  headless: false
 checkpoint:
   enabled: true
+claudeResets:
+  autoRedeem5h: "no"
+  autoRedeemFable: "no"
+  autoRedeemWeekly: "no"
+codexResets:
+  autoRedeem5h: "no"
+  autoRedeemWeekly: "no"
 commands:
-  enableClaudeProject: true
   enableClaudeUser: true
-  enableOpencodeUser: false
   enableOpencodeProject: false
 composer:
-  shape: box
   predictions: false
+  shape: box
 computer:
   enabled: true
 defaultThinkingLevel: auto
+dev:
+  autoqaConsent: granted
+disabledExtensions:
+  - rule:go-add-cleanup
+  - rule:go-bench-loop
+  - rule:go-exp-promoted
+  - rule:go-ioutil
+  - rule:go-join-hostport
+  - rule:go-new-expr
+  - rule:go-rand-v2
+  - rule:go-range-int
+  - skill:using-git-worktrees
+  - skill:writing-skills
+disabledProviders:
+  - claude
+  - claude-md
+  - codex
+emojiAutocomplete: false
 enabledModels:
   - anthropic/claude-fable-5-2
   - anthropic/claude-opus-5-5
@@ -56,21 +78,25 @@ find:
   enabled: "on"
   hitThreshold: 0.3
 gc:
-  strip: true
   compress: true
   stale: true
+  strip: true
 github:
   enabled: true
 includeModelInPrompt: false
 lsp:
-  formatOnWrite: true
   diagnosticsOnEdit: true
+  formatOnWrite: true
+marketplace:
+  autoUpdate: auto
 memory:
   backend: mnemopi
 mnemopi:
-  polyphonicRecall: true
   enhancedRecall: true
+  polyphonicRecall: true
   recallRelevance: auto
+# Key order in modelRoles and retry.fallbackChains is significant: when no role
+# hint matches, omp takes the first role assigned the live model.
 modelRoles:
   advisor: openai-codex/gpt-6.2-sol:high
   commit: openrouter/nvidia/nemotron-3.5-super-vl:free
@@ -85,16 +111,19 @@ modelRoles:
   memory: openrouter/nvidia/nemotron-3.5-super-vl:free
   widget: openrouter/nvidia/nemotron-3.5-lightning:free
   web: web/brave
+  council-opus: anthropic/claude-opus-5-5
+  council-sol: openai-codex/gpt-6.2-sol
+  council-astra: openai-codex/gpt-6.2-astra
+  council-argon: antigravity-cli/gemini-4-argon
+  council-neon: antigravity-cli/gemini-4-neon
 personality: pragmatic
 plan:
   autosave: true
 providers:
-  tinyModelDevice: cuda
-  tinyModelDtype: default
   openaiLiveSteering: true
   openaiResponsesWebsockets: true
+  tinyModelDevice: cuda
 retry:
-  usageAwareFallback: true
   fallbackChains:
     anthropic/*:
       - anthropic-key/*
@@ -128,9 +157,17 @@ retry:
       - anthropic/claude-opus-5-5:medium
       - openai-codex/gpt-6.2-sol
       - openrouter/nvidia/nemotron-3.5-super-vl:free
-security:
-  enabled: true
+    # Council members fail instead of switching models; the council skill drops
+    # them. Keep these last so council-sol never captures a session on Sol.
+    council-opus: []
+    council-sol: []
+    council-astra: []
+    council-argon: []
+    council-neon: []
+  usageAwareFallback: true
 secrets:
+  enabled: true
+security:
   enabled: true
 setupVersion: 3
 skills:
@@ -138,53 +175,42 @@ skills:
     - ponytail
 startup:
   quiet: true
-  showSplash: false
 statusLine:
-  contextLine: embedded
+  compactThinkingLevel: false
   leftSegments:
     - path
     - model
     - mode
   preset: custom
-  segmentOptions:
-    git:
-      showBranch: true
-      showStaged: false
-      showUnstaged: false
-      showUntracked: false
-    model:
-      showThinkingLevel: true
-    path:
-      abbreviate: true
-      maxLength: 30
-      stripWorkPrefix: true
-  separator: block
-  transparent: true
   rightSegments:
     - git
     - context_pct
     - token_rate
-  compactThinkingLevel: false
+  segmentOptions:
+    git:
+      showStaged: false
+      showUnstaged: false
+      showUntracked: false
+    path:
+      maxLength: 30
+  separator: block
+  transparent: true
 task:
-  autoParallel: suggest
-  agentAdvisor:
-    task: "off"
   agentModelOverrides:
-    sonic: openai-codex/gpt-6.2-sol:low
-    scout: openai-codex/gpt-6.1-terra:medium
-    task: "@task"
-    reviewer: openai-codex/gpt-6.2-sol
-    security-reviewer: openai-codex/gpt-6.2-astra:high
     code-simplifier: "@smol"
     error-analyzer: "@task"
+    reviewer: openai-codex/gpt-6.2-sol
+    scout: openai-codex/gpt-6.1-terra:medium
+    security-reviewer: openai-codex/gpt-6.2-astra:high
+    sonic: openai-codex/gpt-6.2-sol:low
+  autoParallel: suggest
   enableEffort: true
   isolation:
     enabled: true
   maxEffort: high
   showResolvedModelBadge: true
-textVerbosity: low
 tier:
-  subagent: none
+  subagent: priority  # options: inherit | none | auto | default | flex | scale | priority | ultrafast
 title:
   refreshOnReplan: false
 todo:
@@ -192,66 +218,32 @@ todo:
 tools:
   intentTracing: false
   restrictedFolders:
-    - ~/.ssh
-    - ~/.gnupg
-    - ~/.password-store
-    - ~/.local/share/keyrings
-    - ~/.pki
     - ~/.aws
+    - ~/.claude/.credentials.json
+    - ~/.coderabbit/auth.json
+    - ~/.codex/auth.json
+    - ~/.config/cloudflare-zone-token
     - ~/.config/gcloud
     - ~/.config/gh
-    - ~/.docker/config.json
-    - ~/.config/cloudflare-zone-token
+    - ~/.config/mozilla
     - ~/.convex/config.json
-    - ~/.sentryclirc
-    - ~/.posthog/credentials.json
-    - ~/.claude/.credentials.json
-    - ~/.codex/auth.json
-    - ~/.coderabbit/auth.json
+    - ~/.docker/config.json
+    - ~/.gnupg
+    - ~/.local/share/keyrings
     - ~/.omp/agent/.env
-    - ~/.omp/agent/secret-placeholder.key
     - ~/.omp/agent/agent.db
     - ~/.omp/agent/agent.db-wal
+    - ~/.omp/agent/secret-placeholder.key
+    - ~/.password-store
+    - ~/.pki
+    - ~/.posthog/credentials.json
+    - ~/.sentryclirc
+    - ~/.ssh
     - ~/.var/app/com.google.Chrome
-    - ~/.config/mozilla
-hideThinkingBlock: false
-browser:
-  headless: false
-disabledExtensions:
-  - rule:go-add-cleanup
-  - rule:go-bench-loop
-  - rule:go-exp-promoted
-  - rule:go-ioutil
-  - rule:go-join-hostport
-  - rule:go-new-expr
-  - rule:go-rand-v2
-  - rule:go-range-int
-  - skill:using-git-worktrees
-  - skill:writing-skills
-isolation:
-  backend: auto
-disabledProviders:
-  - claude
-  - codex
-  - claude-md
-codexResets:
-  autoRedeem5h: "no"
-  autoRedeemWeekly: "no"
-claudeResets:
-  autoRedeem5h: "no"
-  autoRedeemWeekly: "no"
-  autoRedeemFable: "no"
-display:
-  shimmer: classic
-dev:
-  autoqaConsent: granted
 ttsr:
-  repeatMode: after-gap
   repeatGap: 150
-emojiAutocomplete: false
-update:
-  auto: true
-marketplace:
-  autoUpdate: auto
+  repeatMode: after-gap
 tui:
   textSizing: true
+update:
+  auto: true

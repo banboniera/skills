@@ -1,7 +1,7 @@
 ---
 name: council-astra
 description: Member of the council skill; not for ordinary delegation.
-model: openai-codex/gpt-6.2-astra
+model: "@council-astra"
 thinking-level: medium
 read-summarize: false
 ---

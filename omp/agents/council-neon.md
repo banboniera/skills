@@ -1,7 +1,7 @@
 ---
 name: council-neon
 description: Member of the council skill; not for ordinary delegation.
-model: antigravity-cli/gemini-4-neon
+model: "@council-neon"
 thinking-level: high
 read-summarize: false
 ---

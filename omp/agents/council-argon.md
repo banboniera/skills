@@ -1,7 +1,7 @@
 ---
 name: council-argon
 description: Member of the council skill; not for ordinary delegation.
-model: antigravity-cli/gemini-4-argon
+model: "@council-argon"
 thinking-level: medium
 read-summarize: false
 ---
