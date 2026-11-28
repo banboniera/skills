@@ -606,8 +606,16 @@ class Runner:
 def trial_env(overlay: Path, extra: dict[str, str] | None = None) -> dict[str, str]:
     """Environment for omp and checks, with the isolation overlay and trial marker enforced."""
     env = {**os.environ, **(extra or {})}
-    files = os.pathsep.join(filter(None, [env.get("PI_CONFIG_FILES"), str(overlay)]))
-    return {**env, "PI_CONFIG_FILES": files, "OMP_TRIAL": "1"}
+    env.update(PI_CONFIG_FILES=os.pathsep.join(filter(None, [env.get("PI_CONFIG_FILES"), str(overlay)])), OMP_TRIAL="1")
+    return env
+
+
+def require_default_profile(env: dict[str, str], *selectors: str) -> None:
+    for selector in selectors:
+        if selector in ("PI_CODING_AGENT_DIR", "PI_CONFIG_DIR") and selector in env:
+            raise ValueError(f"trial isolation controls {selector}; unset {selector}")
+        if env.get(selector, "").strip() not in ("", "default"):
+            raise ValueError(f"trial isolation needs the default omp profile; unset {selector}")
 
 
 class Plan:
@@ -627,52 +635,50 @@ class Plan:
             hidden = owned_name in (self.hide_skills if kind == "skill" else self.hide_rules if kind == "rule" else ())
             print(f"note: {ref} links to {self.name}; " + ("hidden in the without arm" if hidden else "installed in every arm"))
 
-    def setup(self, arm: str, work: Path, overlay: Path, advisor: bool, lsp: bool, agent: Path, *, archive: bool) -> None:
+    def preflight(self, runner: Runner, arm: str, work: Path, run_dir: Path, case: dict) -> dict[str, str]:
+        """Install the arm and verify its isolation before returning its environment."""
+        history = case.get("history")
+        overlay = run_dir / "overlay.json"
+        env = trial_env(overlay, case["env"])
+        agent = AGENT_DIR
+        if history is not None:
+            # omp ignores PI_CODING_AGENT_DIR when a named profile is selected.
+            selector = "OMP_PROFILE" if "OMP_PROFILE" in env else "PI_PROFILE"
+            require_default_profile(env, selector)
+            agent = fixture_profile(work, history)
+            env.update(OMP_PROFILE="", PI_CODING_AGENT_DIR=str(agent))
         hide = arm == "without"
-        settings = install(self.kind, self.name, self.sources[arm], work, overlay.parent / "arm", agent / "skills", self.base,
+        settings = install(self.kind, self.name, self.sources[arm], work, run_dir / "arm", agent / "skills", self.base,
                            self.hide_skills if hide else (), self.hide_rules if hide else ())
-        overlay.write_text(json.dumps(trial_overlay(settings, advisor, lsp, archive=archive), indent=2))
+        settings = trial_overlay(settings, runner.args.advisor, case.get("lsp") is True, archive=history is not None)
+        overlay.write_text(json.dumps(settings, indent=2))
+        self.check_guidance(arm, work, env, run_dir)
+        if history is not None:
+            runner.check_session_capture(work, env, run_dir / "session")
+            print(f"{case.get('id', 'trigger query')} {arm}: fixture-history isolation ok")
+        return env
 
-    def preflight(self, arm: str, work: Path, env: dict[str, str], run_dir: Path) -> str | None:
-        """None when the arm loads exactly the guidance it should, else the problem."""
+    def check_guidance(self, arm: str, work: Path, env: dict[str, str], run_dir: Path) -> None:
+        """Raise if the arm does not load exactly the guidance it should."""
         if self.kind not in ("skill", "rule"):
-            return None
+            return
         cmd = ["omp", "skill" if self.kind == "skill" else "ttsr", "list", "--json"]
         res = subprocess.run(cmd, cwd=work, env=env, capture_output=True, text=True, timeout=15)
         if res.returncode != 0:
             raise ValueError(f"omp {cmd[1]} list exited {res.returncode}: {res.stderr.strip()}")
         source = self.sources[arm]
         if self.kind == "skill":
-            out = res.stdout
-            found = [s["filePath"] for s in json.loads(out).get("skills", []) if s["name"] == self.name or s["name"].endswith(f"/{self.name}")]
+            found = [s["filePath"] for s in json.loads(res.stdout).get("skills", [])
+                     if s["name"] == self.name or s["name"].endswith(f"/{self.name}")]
             want = [] if source is None else [str(run_dir / "arm/skills" / self.name / "SKILL.md")]
-            return None if found == want else f"skill {self.name}: loads {found or 'nothing'}, expected {want or 'nothing'}"
+            if found != want:
+                raise ValueError(f"skill {self.name}: loads {found or 'nothing'}, expected {want or 'nothing'}")
+            return
         found = [r["path"] for r in json.loads(res.stdout or "[]") if r["name"] == self.name]
         mine = str(work / ".omp/rules" / f"{self.name}.md")
         want = [mine] if source is not None and is_triggered_rule(source) else []
-        return None if found == want else f"rule {self.name}: registered {found or 'nothing'}, expected {want or 'nothing'}"
-
-
-def preflight_env(runner: Runner, plan: Plan, arm: str, work: Path, run_dir: Path, case: dict) -> dict[str, str]:
-    history = case.get("history")
-    overlay = run_dir / "overlay.json"
-    env = trial_env(overlay, case["env"])
-    agent = AGENT_DIR
-    if history is not None:
-        # omp ignores PI_CODING_AGENT_DIR when a named profile is selected.
-        selector = "OMP_PROFILE" if "OMP_PROFILE" in env else "PI_PROFILE"
-        if env.get(selector, "").strip():
-            raise ValueError(f"fixture-history isolation needs the default omp profile; unset {selector}")
-        agent = fixture_profile(work, history)
-        env.update(OMP_PROFILE="", PI_CODING_AGENT_DIR=str(agent))
-    plan.setup(arm, work, overlay, runner.args.advisor, case.get("lsp") is True, agent, archive=history is not None)
-    problem = plan.preflight(arm, work, env, run_dir)
-    if problem:
-        raise ValueError(problem)
-    if history is not None:
-        runner.check_session_capture(work, env, run_dir / "session")
-        print(f"{case.get('id', 'trigger query')} {arm}: fixture-history isolation ok")
-    return env
+        if found != want:
+            raise ValueError(f"rule {self.name}: registered {found or 'nothing'}, expected {want or 'nothing'}")
 
 
 def run_one(runner: Runner, plan: Plan, ev: dict, ev_root: Path, arm: str, rep: int) -> dict:
@@ -693,7 +699,7 @@ def run_one(runner: Runner, plan: Plan, ev: dict, ev_root: Path, arm: str, rep: 
         fixture = ev.get("fixture")
         work, _ = prepare_work((ev_root / fixture) if fixture else None, ev.get("setup"), ev.get("repo"), ev.get("rev"))
         try:
-            env = preflight_env(runner, plan, arm, work, run_dir, ev)
+            env = plan.preflight(runner, arm, work, run_dir, ev)
         except (ValueError, OSError, sqlite3.Error, subprocess.SubprocessError) as error:
             runner.stop(f"isolation failed ({arm}): {error}")
             return {**meta, "status": f"error: {error}"}
@@ -754,6 +760,10 @@ def eval_env(item: dict) -> dict[str, str]:
     env = item.get("env", {})
     if not isinstance(env, dict) or not all(isinstance(value, str) for value in env.values()):
         sys.exit("eval env must be an object with string values")
+    try:
+        require_default_profile(env, "OMP_PROFILE", "PI_PROFILE", "PI_CODING_AGENT_DIR", "PI_CONFIG_DIR")
+    except ValueError as error:
+        sys.exit(error)
     return env
 
 
@@ -842,7 +852,7 @@ def cmd_triggers(args: argparse.Namespace) -> None:
             fixture = q.get("fixture")
             work, _ = prepare_work((args.evals.parent / fixture) if fixture else None, q.get("setup"), q.get("repo"), q.get("rev"))
             try:
-                env = preflight_env(runner, plan, args.arm, work, run_dir, q)
+                env = plan.preflight(runner, args.arm, work, run_dir, q)
             except (ValueError, OSError, sqlite3.Error, subprocess.SubprocessError) as error:
                 runner.stop(f"isolation failed: {error}")
                 return {"query": i, "rep": rep, "status": f"error: {error}"}
@@ -900,7 +910,12 @@ def cmd_triggers(args: argparse.Namespace) -> None:
     runner.finish()
 
 
-RULE_CASE_ENVELOPE = re.compile(r"^(?:\[[^\]\r\n]+#[0-9A-Za-z]{4}\]|\*\*\* (?:Begin|Update|Add) |PUT |CUT )", re.MULTILINE)
+RULE_CASE_ENVELOPE = re.compile(
+    r"^(?:\[[^\]\r\n]+#[0-9A-F]{4}\]|\*\*\* (?:Begin Patch|(?:Update|Add) File: [^\r\n]+)|"
+    r"PUT (?:[1-9]\d*(?:\.=[1-9]\d*|\*)|[<>][1-9]\d*|>[1-9]\d*\*|>\$)(?::| @[A-Za-z0-9_-]+)|"
+    r"CUT [1-9]\d*(?:\.=[1-9]\d*|\*)(?: @[A-Za-z0-9_-]+)?)\r?$",
+    re.MULTILINE,
+)
 
 
 def copy_rule_for_test(rule: Path, scratch: Path) -> tuple[Path, bool]:

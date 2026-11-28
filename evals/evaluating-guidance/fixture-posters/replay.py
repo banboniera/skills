@@ -11,16 +11,14 @@ def materialize(scenario, bucket, project):
     for began, slug, timeline in json.loads(scenario.read_text()):
         start = datetime.fromisoformat(began).replace(tzinfo=UTC)
         rows = []
-        parent = None
         session_id = str(uuid5(NAMESPACE_URL, f"poster-catalog:{began}:{slug}"))
 
         def emit(kind, **fields):
-            nonlocal parent
-            stamp = start + timedelta(seconds=len(rows))
+            index = len(rows)
+            stamp = start + timedelta(seconds=index)
             row = {"type": kind, "timestamp": stamp.isoformat(timespec="milliseconds").replace("+00:00", "Z")}
             if kind != "session":
-                row.update(id=f"{len(rows):08x}", parentId=parent)
-                parent = row["id"]
+                row.update(id=f"{index:08x}", parentId=rows[-1]["id"] if index > 1 else None)
             if "message" in fields:
                 fields["message"]["timestamp"] = int(stamp.timestamp() * 1000)
             rows.append(row | fields)

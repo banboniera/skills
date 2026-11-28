@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
 from itertools import islice
-from pathlib import Path, PurePath
+from pathlib import Path
 
 URL_PATH = re.compile(r"^[a-z][a-z0-9+.-]*://")  # internal URLs (local://, xd://) are no project files
 
@@ -110,8 +110,8 @@ def selected_path(path, root, excludes, running):
 
 
 def candidates(root, roots, excludes, since, until, *, live):
-    """Filter only names and append mtimes before opening any candidate."""
-    prefixes = [pair for project in roots for pair in bucket_prefixes(project)]
+    """Narrow by bucket, filename and append mtime before reading headers."""
+    prefixes = {pair for project in roots for pair in bucket_prefixes(project)}
     running = os.environ.get("PI_SESSION_FILE")
     running = Path(running).expanduser().resolve() if running else None
     cutoff = datetime.fromisoformat(since).replace(tzinfo=UTC).timestamp()
@@ -247,9 +247,7 @@ def task_results(source):
             output = TASK_OUTPUT.search(body)
             tagged[child] = (fields.get("status"), output[2] if output else body.strip())
     jobs = [job for job in details.get("jobs") or [] if job.get("type") == "task"]
-    results = jobs or details.get("results") or [
-        {"id": child, "status": status, "output": value} for child, (status, value) in tagged.items()
-    ]
+    results = jobs or details.get("results") or ({"id": child} for child in tagged)
     for result in results:
         child = result.get("agentId") or result.get("id") or result.get("jobId") or result.get("agent")
         if not child:
@@ -282,11 +280,11 @@ def correlate_reminder(entry, message, parents, injections, batch, tool_results,
     for name in names:
         if len(claims[name]) != 1:
             continue
-        row = claims[name][0]
-        rules = row["data"]["rules"]
-        if all(rule in names and claims[rule] == [row] for rule in rules):
-            row["data"]["mode"] = "tool-reminder"
-            row["data"]["matched"].update({rule: hit[1] for rule in rules if (hit := MATCHED.search(names[rule]))})
+        data = claims[name][0]["data"]
+        rules = data["rules"]
+        if data["mode"] == "unknown" and all(rule in names and claims[rule] == claims[name] for rule in rules):
+            data["mode"] = "tool-reminder"
+            data["matched"].update({rule: hit[1] for rule in rules if (hit := MATCHED.search(names[rule]))})
             delivered[batch].extend(rules)
 
 
@@ -592,13 +590,14 @@ def record(directory):
     if len(index["projects"]) != 1 or index.get("explicit_project"):
         raise ValueError("cannot record a digest made with an explicit --project")
     project = Path(index["projects"][0]).resolve()
-    path = checkpoint_path(project, session_root(None))
+    root = session_root(None)
+    path = checkpoint_path(project, root)
     previous = checkpoint(path)
     since, until = index["since"], index["until"]
     now = datetime.now(UTC).replace(tzinfo=None).isoformat(timespec="microseconds")
     if not since < until <= now:
         raise ValueError(f"cannot record the window [{since}, {until}): it must be non-empty and end by now")
-    if Path(index["sessions_root"]) != session_root(None):
+    if Path(index["sessions_root"]) != root:
         raise ValueError(f"cannot record a digest of {index['sessions_root']}: it is not this profile's session history")
     if previous and since > previous["until"]:
         raise ValueError(f"cannot record a gap after {previous['until']}")
@@ -618,9 +617,7 @@ def record(directory):
     print(f"recorded through {until} UTC: {path}")
 
 
-def analyze(args, projects, since, until, *, collect_cases=False):
-    root = session_root(args.sessions)
-    roots = {root for project in projects for root in project_roots(project)}
+def analyze(args, root, roots, since, until, *, collect_cases=False):
     sources = candidates(root, roots, getattr(args, "exclude", []), since, until,
                          live=not (args.sessions or os.environ.get("GUIDANCE_SESSIONS")))
     for path, main_recent, children in sources:
@@ -636,7 +633,7 @@ def analyze(args, projects, since, until, *, collect_cases=False):
         yield path, groups, found
 
 
-def digest(args, projects, since, until, origin):
+def digest(args, root, projects, roots, since, until, origin):
     out = args.out or Path(tempfile.mkdtemp(prefix="guidance-sessions-"))
     if args.out:
         if out.exists() and (not out.is_dir() or any(out.iterdir())):
@@ -649,7 +646,7 @@ def digest(args, projects, since, until, origin):
     print("digest | lines | user turns | aborts | rule deliveries | advisor notes | subagents | transcript")
     totals, read_totals, summary = {}, Counter(), []
     names = set()
-    for path, groups, _ in analyze(args, projects, since, until):
+    for path, groups, _ in analyze(args, root, roots, since, until):
         if not groups or (args.match and not any(args.match.search(row["text"]) for _, rows in groups for row in rows)):
             continue
         stem = f"{path.stem[:16]}_{path.stem[-8:]}"
@@ -662,7 +659,7 @@ def digest(args, projects, since, until, origin):
         summary.append(summarize(f"{stem}.md", path, groups, len(markdown), totals, read_totals))
     index = {"projects": list(map(str, projects)), "explicit_project": bool(args.project), "since": since,
              "until": until, "match": args.match.pattern if args.match else None, "excludes": args.exclude,
-             "sessions_root": str(session_root(args.sessions)), "sessions": summary, "deliveries": totals}
+             "sessions_root": str(root), "sessions": summary, "deliveries": totals}
     write_private(out / "index.json", [json_text(index)])
     print(f"\n{len(summary)} sessions, {sum(row['user_turns'] for row in summary)} user turns")
     print("rule | deliveries by mode | deliberate reads | sessions | examples")
@@ -674,24 +671,26 @@ def digest(args, projects, since, until, origin):
               f" | {', '.join(data.get('examples', []))}")
 
 
-def in_paths(path, globs, projects):
-    """True when no globs are given, or the path (relative to its project) matches one of them."""
+def in_paths(path, globs, roots):
+    """Match globs relative to the first containing project or worktree root."""
     if not globs:
         return True
     candidate = Path(path)
-    for project in projects:
-        if candidate.is_absolute() and candidate.is_relative_to(project):
-            candidate = candidate.relative_to(project)
+    for root in roots:
+        if candidate.is_absolute() and candidate.is_relative_to(root):
+            candidate = candidate.relative_to(root)
             break
-    return any(PurePath(candidate).full_match(glob) for glob in globs)
+    return any(candidate.full_match(glob) for glob in globs)
 
 
-def cases(args, projects, since, until):
+def cases(args, root, roots, since, until):
     delivered = set(args.delivered)
+    # A worktree can be nested inside another checkout.
+    roots = sorted(roots, key=lambda path: len(path.parts), reverse=True)
     result = [
-        edit for _, _, edits in analyze(args, projects, since, until, collect_cases=True)
+        edit for _, _, edits in analyze(args, root, roots, since, until, collect_cases=True)
         for edit in edits
-        if (not delivered or delivered.intersection(edit["delivered"])) and in_paths(edit["path"], args.path, projects)
+        if (not delivered or delivered.intersection(edit["delivered"])) and in_paths(edit["path"], args.path, roots)
     ]
     write_private(args.out, [json_text({"rule_cases": result})])  # holds source text: new file, owner-only
 
@@ -716,7 +715,7 @@ def main():
     cases_parser = commands.add_parser("cases", help="extract matcher-visible edits and writes as rule cases")
     add_window(cases_parser, since_required=True)
     cases_parser.add_argument("--path", action="append", default=[], metavar="GLOB",
-                              help="keep files matching this project-relative glob (** allowed), repeatable")
+                              help="keep files matching this project- or worktree-relative glob (** allowed), repeatable")
     cases_parser.add_argument("--delivered", action="append", default=[], metavar="RULE",
                               help="keep only edits that delivered this rule live, repeatable")
     cases_parser.add_argument("--out", type=Path, required=True, metavar="FILE", help="rule cases JSON file")
@@ -736,9 +735,10 @@ def main():
                 parser.error(f"not a directory: {project}")
         now = datetime.now(UTC)
         until = args.until or timestamp(now.isoformat())
+        root = session_root(args.sessions)
         since, origin = args.since, "--since"
         if since is None:
-            previous = checkpoint(checkpoint_path(projects[0], session_root(args.sessions)))
+            previous = checkpoint(checkpoint_path(projects[0], root))
             if previous:
                 since, origin = previous["until"], "end of the recorded review"
             else:
@@ -746,12 +746,13 @@ def main():
                 origin = "no recorded review: last 14 days"
         if since > until:
             parser.error("--since must not be later than --until")
+        roots = {checkout for project in projects for checkout in project_roots(project)}
         if args.command == "cases":
-            cases(args, projects, since, until)
+            cases(args, root, roots, since, until)
         else:
             if args.match is not None:
                 args.match = re.compile(args.match)
-            digest(args, projects, since, until, origin)
+            digest(args, root, projects, roots, since, until, origin)
     except (OSError, ValueError, re.error) as exc:
         parser.error(str(exc))
 

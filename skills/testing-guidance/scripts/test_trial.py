@@ -362,9 +362,8 @@ else:
         omp.chmod(0o755)
         self.env = {**os.environ, "PATH": f"{omp.parent}{os.pathsep}{os.environ['PATH']}",
                     "PI_CODING_AGENT_DIR": str(self.agent)}
-        self.env.pop("OMP_TRIAL", None)
-        self.env.pop("OMP_PROFILE", None)
-        self.env.pop("PI_PROFILE", None)
+        for name in ("OMP_TRIAL", "OMP_PROFILE", "PI_PROFILE"):
+            self.env.pop(name, None)
 
     def cli(self, data: dict, *options: str, command: str = "run", out: Path | None = None,
             arms: tuple[str, ...] = ("with",)) -> subprocess.CompletedProcess:
@@ -483,20 +482,26 @@ else:
                 self.assertEqual(res.returncode, 1)
                 self.assertIn(problem, res.stdout + res.stderr)
 
-    def test_fixture_history_refuses_named_profiles_in_dry_run(self) -> None:
-        for variable in ("OMP_PROFILE", "PI_PROFILE"):
-            with self.subTest(variable=variable):
-                res = self.cli({"history": "history", "evals": [
-                    {"id": "one", "prompt": "go", "env": {variable: "separate-profile"}},
-                ]}, "--dry-run")
-                self.assertEqual(res.returncode, 1)
-                self.assertIn(f"unset {variable}", res.stdout + res.stderr)
+    def test_refuses_profile_overrides_in_top_level_and_case_env(self) -> None:
+        for variable, value in (("OMP_PROFILE", "separate-profile"), ("PI_PROFILE", "separate-profile"),
+                                ("PI_CODING_AGENT_DIR", "/alternate/agent"), ("PI_CODING_AGENT_DIR", ""),
+                                ("PI_CONFIG_DIR", "/alternate/config")):
+            env = {variable: value}
+            case = {"id": "one", "prompt": "go"}
+            for data in ({"env": env, "evals": [case]}, {"history": "history", "evals": [{**case, "env": env}]}):
+                with self.subTest(variable=variable, value=value, history=data.get("history")):
+                    res = self.cli(data, "--dry-run")
+                    self.assertEqual(res.returncode, 1)
+                    self.assertIn(f"unset {variable}", res.stderr)
+                    self.assertFalse(self.out.exists())
 
-    def test_empty_omp_profile_overrides_legacy_profile_for_fixture_history(self) -> None:
+    def test_default_omp_profile_overrides_legacy_profile_for_fixture_history(self) -> None:
         self.env["PI_PROFILE"] = "separate-profile"
-        res = self.cli({"history": "history", "env": {"OMP_PROFILE": ""},
-                        "evals": [{"id": "one", "prompt": "go"}]}, "--dry-run")
-        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        for selection in ("", "default"):
+            with self.subTest(selection=selection):
+                res = self.cli({"history": "history", "env": {"OMP_PROFILE": selection},
+                                "evals": [{"id": "one", "prompt": "go"}]}, "--dry-run")
+                self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
 
     def test_fixture_history_may_not_point_at_live_sessions(self) -> None:
         canary = write(self.agent / "sessions/canary.jsonl", "live session")
@@ -582,11 +587,15 @@ class TtsrCases(unittest.TestCase):
 
     def test_rejects_patch_envelopes_in_labelled_cases(self) -> None:
         for snippet in ("[src/a.rs#AAAA]\n+ token", "*** Begin Patch\n+ token", "*** Update File: src/a.rs",
-                        "*** Add File: src/a.rs", "token\nPUT >3:\n+ token", "CUT 2*=3"):
+                        "*** Add File: src/a.rs", "token\nPUT >3:\n+ token", "PUT 12.=14:", "CUT 5*"):
             with self.subTest(snippet=snippet), patch.object(trial.subprocess, "run", return_value=self.result("example")):
                 code, out = self.cases({"snippet": snippet, "path": "src/a.rs", "fires": False})
                 self.assertNotEqual(code, 0)
                 self.assertIn("a rule case is what the matcher sees: the added lines of one file", str(code) + out)
+        with patch.object(trial.subprocess, "run", return_value=self.result("example", fires=True)):
+            code, out = self.cases({"snippet": "PUT /api/orders", "source": "text", "fires": True})
+        self.assertEqual(code, 0, out)
+        self.assertIn("expected fires, got fires", out)
 
     def test_one_bad_case_does_not_stop_the_others(self) -> None:
         with patch.object(trial.subprocess, "run", return_value=self.result("example", fires=True)):

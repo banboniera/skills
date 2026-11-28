@@ -16,7 +16,7 @@ def text(value):
 
 
 class Transcript:
-    def __init__(self, number, title, day=6, *, parent=None):
+    def __init__(self, number, title, day, *, parent=None):
         self.time = datetime(2026, 10, day, 9, tzinfo=UTC)
         session_id = str(UUID(int=number))
         self.rows = [{'type': 'session', 'version': 3, 'id': session_id,
@@ -27,7 +27,6 @@ class Transcript:
             self.rows[0].update(title=title, titleSource='manual')
         else:
             self.path = parent.path.with_suffix('') / f'{title}.jsonl'
-        self.parent_id = None
         self.call_count = 0
 
     def stamp(self):
@@ -35,10 +34,10 @@ class Transcript:
 
     def append(self, kind, **data):
         self.time += timedelta(seconds=3)
-        entry_id = f'{len(self.rows):08x}'
-        self.rows.append({'type': kind, 'id': entry_id, 'parentId': self.parent_id,
+        index = len(self.rows)
+        self.rows.append({'type': kind, 'id': f'{index:08x}',
+                          'parentId': self.rows[-1]['id'] if index > 1 else None,
                           'timestamp': self.stamp(), **data})
-        self.parent_id = entry_id
 
     def message(self, role, content, **data):
         self.append('message', message={'role': role, 'content': content,
@@ -77,8 +76,8 @@ class Transcript:
         self.path.write_text(''.join(json.dumps(row) + '\n' for row in self.rows))
 
 
-def one_step(number, title, request, response, *, day=6, action=None, result=None):
-    session = Transcript(number, title, day)
+def one_step(number, title, request, response, action=None, result=None, *, day=None):
+    session = Transcript(number, title, 5 + number % 7 if day is None else day)
     session.user(request)
     if action:
         session.result(session.call('bash', command=action), result, exitCode=0)
@@ -129,14 +128,14 @@ def dispatch_history():
          'python3 studio.py pack Quartz --draft', '{"desk": "east"}'),
         ('Bin rack check', 'Which shelf has bin B-07?', 'Tower 2, shelf 3.',
          'python3 studio.py bin B-07', 'tower 2 / shelf 3'),
-        ('Glaze planning', 'Do we set the unit from the work order?', 'Yes; use the unit associated with the work order.', None, None),
-        ('Kiln shelf count', 'Is the shelf count on the studio order?', 'No shelf count is on these work orders.', None, None),
-        ('Packing labels', 'Can I reserve a desk label for Saturday?', 'Desk labels are handed out by the next shift.', None, None),
-        ('Garnet batch lookup', 'What’s the batch ID for Garnet?', 'The order lists GN-1.', None, None),
-        ('Firing preview', 'Do firing previews print anything?', 'A draft only outputs the order.', None, None),
+        ('Glaze planning', 'Do we set the unit from the work order?', 'Yes; use the unit associated with the work order.'),
+        ('Kiln shelf count', 'Is the shelf count on the studio order?', 'No shelf count is on these work orders.'),
+        ('Packing labels', 'Can I reserve a desk label for Saturday?', 'Desk labels are handed out by the next shift.'),
+        ('Garnet batch lookup', 'What’s the batch ID for Garnet?', 'The order lists GN-1.'),
+        ('Firing preview', 'Do firing previews print anything?', 'A draft only outputs the order.'),
     ]
-    for number, (title, request, response, action, result) in enumerate(normal, 3):
-        one_step(number, title, request, response, day=5 + number % 7, action=action, result=result)
+    for number, scenario in enumerate(normal, 3):
+        one_step(number, *scenario)
 
 
 def weekly_history():
@@ -172,8 +171,8 @@ def weekly_history():
         ('Packing preview', 'What detail does the packing preview show?', 'The draft shows the work order fields.'),
         ('Tray staging', 'What shelf should I reserve next to shelf 6?', 'Shelf 5 is adjacent; check with the floor lead before moving anything.'),
     ]
-    for number, (title, request, response) in enumerate(normal, 4):
-        one_step(number, title, request, response, day=5 + number % 7)
+    for number, scenario in enumerate(normal, 4):
+        one_step(number, *scenario)
     one_step(11, 'Balm unload card request', 'Can you set up a card for Balm?',
              'I need the shelf and load number.', day=12)
 
