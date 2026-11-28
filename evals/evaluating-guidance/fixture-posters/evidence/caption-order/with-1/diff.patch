@@ -1,0 +1,7 @@
+diff --git a/src/gallery.py b/src/gallery.py
+--- a/src/gallery.py
++++ b/src/gallery.py
+@@ -1,2 +1,2 @@
+ def order_captions(captions):
+-    return sorted(captions, key=str.casefold)
++    return sorted(captions, key=lambda caption: caption.casefold())

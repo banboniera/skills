@@ -95,8 +95,6 @@ mnemopi:
   enhancedRecall: true
   polyphonicRecall: true
   recallRelevance: auto
-# Key order in modelRoles and retry.fallbackChains is significant: when no role
-# hint matches, omp takes the first role assigned the live model.
 modelRoles:
   advisor: openai-codex/gpt-6.2-sol:high
   commit: openrouter/nvidia/nemotron-3.5-super-vl:free
@@ -157,8 +155,6 @@ retry:
       - anthropic/claude-opus-5-5:medium
       - openai-codex/gpt-6.2-sol
       - openrouter/nvidia/nemotron-3.5-super-vl:free
-    # Council members fail instead of switching models; the council skill drops
-    # them. Keep these last so council-sol never captures a session on Sol.
     council-opus: []
     council-sol: []
     council-astra: []
@@ -243,6 +239,7 @@ tools:
 ttsr:
   repeatGap: 150
   repeatMode: after-gap
+  judge: auto
 tui:
   textSizing: true
 update:

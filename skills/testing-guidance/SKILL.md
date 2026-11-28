@@ -23,8 +23,9 @@ R="$(realpath skill://testing-guidance/scripts/report.py)"
    reports, for example "`with` loads the skill in every run, passes ≥ 80% of
    checks and expectations, and beats `without`; trigger accuracy ≥ 85% on
    the test split".
-2. **Free checks.** `hint` for a skill, `rules` for a triggered rule, and
-   `run --dry-run --budget 0` (every arm loads only its own copy).
+2. **Validate, then dry-run.** Use `hint` for a skill or `rules` for a
+   triggered rule. Then use `run --dry-run --budget 0` on the planned arms;
+   fix any isolation error before a paid pilot.
 3. **Approval.** New guidance runs `without` and `with`; changed guidance runs
    `old=HEAD` and `with`, plus `without` when the question is whether it is
    needed at all. Count the sessions of one iteration (evals × arms × reps,
@@ -33,18 +34,19 @@ R="$(realpath skill://testing-guidance/scripts/report.py)"
    session default unless they name one), the number of iterations (default
    3) and one total budget. Wording micro-tests ([micro-tests.md](micro-tests.md))
    cost cents and need the same approval.
-4. **Run** in the background with `--budget <approved total>`. The budget
-   covers every run whose `--out` shares a parent (`.workspaces/<name>/`,
-   ledger `spend.jsonl`); after a further approval, pass the old total plus the
-   new amount. Pilot first (`run --limit 1 --reps 1`) and compare its cost per
-   session with your estimate; if the plan no longer fits, ask again before
-   the full run.
+4. **Pilot, then run.** Start with `run --limit 1 --reps 1` and compare its
+   cost per session with your estimate. If the plan still fits, run in the
+   background with `--budget <approved total>`; otherwise ask again. All
+   iterations sharing an output parent use its `spend.jsonl`; after another
+   approval pass the old total plus the new amount. Keep output outside the
+   guarded trees.
 
    ```sh
+   cache="${XDG_CACHE_HOME:-$HOME/.cache}/omp-trials"
    python3 "$T" run --target <path> --evals <evals.json> \
-     --out .workspaces/<name>/iteration-<N> --budget <USD> [--arm …] [--hide-references]
+     --out "$cache/<name>/iteration-<N>" --split train --budget <USD> [--arm …] [--hide-references]
    python3 "$T" triggers --target <path> --evals <evals.json> \
-     --out .workspaces/<name>/iteration-<N> --split train --budget <USD>
+     --out "$cache/<name>/iteration-<N>" --split train --budget <USD>
    ```
 
    A run exits 1 when the budget is spent or reserved, an arm loads the wrong
@@ -81,13 +83,14 @@ R="$(realpath skill://testing-guidance/scripts/report.py)"
    metric; otherwise change the guidance per
    [writing-guidance](skill://writing-guidance), generalizing from the
    failures instead of fitting the prompts, and run the next iteration from
-   step 4. Then run the test split of the trigger queries once. For a metric a
-   script computes, [loop.md](loop.md) runs this loop unattended.
+   step 4. Evaluate the candidate against the shipped version on `test`
+   once; keep the shipped version unless the candidate wins. For a scripted
+   metric, [loop.md](loop.md) runs the train loop unattended.
 
 ## Report
 
 The verdict first: goal met or not, how the arms differ (loaded, pass rates),
 the money spent of the budget, and why the iterations stopped. Then the
 benchmark table, each flag with its explanation, the changes per iteration,
-what stays unmeasured (`question` rules, outputs only a person can judge,
-other models), and the path to `report.html`.
+what stays unmeasured (rule judges, outputs only a person can judge, other
+models), and the path to `report.html`.

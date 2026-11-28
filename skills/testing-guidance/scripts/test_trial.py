@@ -1,12 +1,21 @@
 """Tests for trial.py: python3 -m unittest discover -s <this dir>."""
 
 import argparse
+import contextlib
+import hashlib
+import io
 import json
+import os
+import shlex
 import shutil
+import sqlite3
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import trial
 
@@ -133,6 +142,8 @@ class Overlay(unittest.TestCase):
         self.assertEqual(overlay["memory"], {"backend": "off"})
         self.assertEqual(overlay["retry"], {"modelFallback": False, "usageAwareFallback": False})
         self.assertEqual(overlay["computer"], {"enabled": False})
+        self.assertEqual(overlay.get("lsp"), {"enabled": False})
+        self.assertEqual(trial.trial_overlay({}, advisor=False, lsp=True)["lsp"], {"enabled": True})
         self.assertEqual(overlay["archive"], {"enabled": False}, "past sessions would show a without arm the target's work")
         self.assertEqual(overlay["advisor"], {"enabled": False})
         self.assertNotIn("advisor", trial.trial_overlay({}, advisor=True))
@@ -153,6 +164,21 @@ class Diff(unittest.TestCase):
             self.assertIn("added-by-agent.md", diff)
             self.assertIn("+edited by agent", diff)
             self.assertNotIn("+arm copy", diff)
+            self.assertEqual(trial.git(work, "diff", "--cached"), "")
+            self.assertIn("+edited by agent", trial.git(work, "diff"))
+            self.assertIn("+edited by agent", trial.git(work, "diff", "HEAD"))
+            self.assertIn("?? .omp/rules/added-by-agent.md", trial.git(work, "status", "--porcelain"))
+        finally:
+            shutil.rmtree(work.parent)
+
+    def test_diff_does_not_replace_the_agents_staged_content(self) -> None:
+        work, base = trial.prepare_work(None, None)
+        try:
+            write(work / "artifact", "staged\n")
+            trial.git(work, "add", "artifact")
+            write(work / "artifact", "unstaged\n")
+            self.assertIn("+unstaged", trial.changes(work, base))
+            self.assertEqual(trial.git(work, "show", ":artifact"), "staged\n")
         finally:
             shutil.rmtree(work.parent)
 
@@ -276,13 +302,328 @@ class Budget(unittest.TestCase):
             self.assertEqual(sum(c for c in caps if c), 3.0)
 
 
+class RunCLI(unittest.TestCase):
+    def setUp(self) -> None:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name)
+        self.agent = self.root / "agent"
+        self.repo = self.root / "repo"
+        self.target = write(self.repo / ".omp/commands/example.md", "Example")
+        trial.git(self.repo, "init", "-q")
+        trial.commit_all(self.repo, "target")
+        self.out = self.root / "output/iteration-1"
+        self.evals = self.root / "evals.json"
+        env = f"#!{sys.executable}\n"
+        omp = write(self.root / "bin/omp", env + """\
+import json
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+if sys.argv[1] == "config":
+    print('{"value": null}')
+elif sys.argv[1] == "ttsr":
+    print('[{"name": "example", "path": "/wrong/example.md"}]')
+elif sys.argv[1] == "skill":
+    overlay = json.loads(Path(os.environ["PI_CONFIG_FILES"].split(os.pathsep)[-1]).read_text())
+    skills = []
+    if not os.getenv("DROP_SKILL"):
+        for directory in overlay.get("skills", {}).get("customDirectories", []):
+            skills.extend({"name": p.parent.name, "filePath": str(p)} for p in Path(directory).glob("*/SKILL.md"))
+    print(json.dumps({"skills": skills}))
+elif "--mode" in sys.argv and sys.argv[sys.argv.index("--mode") + 1] == "rpc":
+    request = json.load(sys.stdin)
+    capture = Path(sys.argv[sys.argv.index("--session-dir") + 1])
+    if os.getenv("WRONG_CAPTURE"):
+        capture = Path(os.environ["PI_CODING_AGENT_DIR"]) / "sessions"
+    print(json.dumps({"id": request["id"], "type": "response", "command": request["type"],
+                      "success": True, "data": {"sessionFile": str(capture / "trial.jsonl"), "model": {"id": "test"}}}))
+else:
+    overlay = Path(os.environ["PI_CONFIG_FILES"].split(os.pathsep)[-1])
+    observed = {k: os.getenv(k) for k in ("TOP", "LOCAL", "SHARED")}
+    observed["lsp"] = json.loads(overlay.read_text()).get("lsp")
+    Path("tracked").write_text(json.dumps(observed) + "\\n")
+    Path("untracked").write_text("new file")
+    if os.getenv("TEST_PROFILE"):
+        profile = Path(os.environ["PI_CODING_AGENT_DIR"])
+        assert profile.stat().st_mode & 0o777 == 0o700
+        assert (profile / "sessions/sample.jsonl").is_file()
+        assert not (profile / "sessions/canary.jsonl").exists()
+        assert (profile / "config.yml").read_text() == "original config"
+        (profile / "config.yml").write_text("changed config")
+        with sqlite3.connect(profile / "agent.db") as conn:
+            assert list(conn.execute("SELECT item FROM fixture")) == [("original auth",)]
+            conn.execute("INSERT INTO fixture VALUES ('new auth')")
+        (profile / "extensions/example.ts").write_text("changed extension")
+        Path("profile_path").write_text(str(profile))
+""")
+        omp.chmod(0o755)
+        self.env = {**os.environ, "PATH": f"{omp.parent}{os.pathsep}{os.environ['PATH']}",
+                    "PI_CODING_AGENT_DIR": str(self.agent)}
+        self.env.pop("OMP_TRIAL", None)
+        self.env.pop("OMP_PROFILE", None)
+        self.env.pop("PI_PROFILE", None)
+
+    def cli(self, data: dict, *options: str, command: str = "run", out: Path | None = None,
+            arms: tuple[str, ...] = ("with",)) -> subprocess.CompletedProcess:
+        self.evals.write_text(json.dumps(data))
+        return subprocess.run(
+            [sys.executable, trial.__file__, command, "--target", str(self.target), "--evals", str(self.evals),
+             "--out", str(out or self.out), "--reps", "1", "--budget", "3",
+             *(part for arm in arms for part in ("--arm", arm)), *options],
+            env=self.env, capture_output=True, text=True,
+        )
+
+    def test_dry_run_fails_isolation(self) -> None:
+        self.target = write(self.repo / ".omp/rules/example.md", "---\ncondition: x\n---\n")
+        res = self.cli({"evals": [{"id": "one", "prompt": "go"}]}, "--dry-run")
+        self.assertEqual(res.returncode, 1, res.stderr)
+        self.assertIn("isolation failed", res.stdout)
+
+    def test_refuses_output_in_a_guarded_tree_before_creating_artifacts(self) -> None:
+        linked = self.root / "linked-skill"
+        linked.mkdir()
+        (self.agent / "skills").mkdir(parents=True)
+        (self.agent / "skills/link").symlink_to(linked)
+        for parent in (self.repo, self.agent / "rules", linked):
+            with self.subTest(parent=parent):
+                out = parent / "trials/iteration-1"
+                res = self.cli({"evals": [{"id": "one", "prompt": "go"}]}, "--dry-run", out=out)
+                self.assertNotEqual(res.returncode, 0, res.stdout)
+                self.assertIn("--out", res.stderr)
+                self.assertFalse(out.parent.exists())
+
+    def test_refuses_output_in_a_guarded_tree_for_triggers_too(self) -> None:
+        self.target = write(self.repo / ".omp/rules/example.md", "---\ndescription: example\n---\n")
+        out = self.repo / "trials/iteration-1"
+        res = self.cli({"triggers": [{"query": "go", "should_trigger": False}]}, command="triggers", out=out)
+        self.assertNotEqual(res.returncode, 0, res.stdout)
+        self.assertIn("--out", res.stderr)
+        self.assertFalse(out.parent.exists())
+
+    def test_run_selects_split_before_limit_and_defaults_to_all(self) -> None:
+        data = {"evals": [{"id": k, "prompt": k, **fields} for k, fields in
+                          (("implicit", {}), ("held", {"split": "test"}), ("explicit", {"split": "train"}))]}
+        for flags, wanted in (([], ["implicit", "held", "explicit"]),
+                              (["--split", "train"], ["implicit", "explicit"]),
+                              (["--split", "test", "--limit", "1"], ["held"])):
+            with self.subTest(flags=flags):
+                res = self.cli(data, "--dry-run", *flags)
+                self.assertEqual(res.returncode, 0, res.stderr)
+                index = json.loads((self.out / "index.json").read_text())
+                self.assertEqual(list(index["evals"]), wanted)
+
+    def test_session_and_checks_see_merged_env_and_checks_see_unstaged_edits(self) -> None:
+        patch_file = shlex.quote(str(self.out / "runs/one/with-1/diff.patch"))
+        res = self.cli({
+            "env": {"TOP": "top", "SHARED": "global"},
+            "evals": [{
+                "id": "one", "prompt": "go", "setup": "echo base >tracked",
+                "env": {"LOCAL": "local", "SHARED": "eval"}, "lsp": True,
+                "checks": [{"name": "evaluate real diff", "run": (
+                    'test "$TOP:$LOCAL:$SHARED" = top:local:eval'
+                    ' && git diff --exit-code --cached && ! git diff --quiet'
+                    ' && test -n "$(git diff HEAD)"'
+                    f' && grep -q "new file" {patch_file}'
+                )}],
+            }],
+        })
+        self.assertEqual(res.returncode, 0, res.stderr)
+        run = self.out / "runs/one/with-1"
+        self.assertEqual(json.loads((run / "checks.json").read_text())[0]["exit_code"], 0)
+        addition = next(line[1:] for line in (run / "diff.patch").read_text().splitlines() if line.startswith("+{"))
+        self.assertEqual(json.loads(addition), {"TOP": "top", "LOCAL": "local", "SHARED": "eval", "lsp": {"enabled": True}})
+
+    def test_both_arms_and_checks_use_private_fixture_history(self) -> None:
+        self.target = write(self.repo / "skills/example/SKILL.md", "---\nname: example\n---\n").parent
+        original_config = write(self.root / "config.yml", "original config")
+        self.agent.mkdir()
+        (self.agent / "config.yml").symlink_to(original_config)
+        extension = write(self.root / "extensions/example.ts", "original extension")
+        (self.agent / "extensions").symlink_to(extension.parent)
+        canary = write(self.agent / "sessions/canary.jsonl", "live session")
+        db = self.agent / "agent.db"
+        with contextlib.closing(sqlite3.connect(db)) as conn:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("CREATE TABLE fixture (item TEXT)")
+            conn.execute("INSERT INTO fixture VALUES ('original auth')")
+            conn.commit()
+            paths = (original_config, db, Path(f"{db}-wal"), extension, canary)
+            before = [hashlib.sha256(path.read_bytes()).digest() for path in paths]
+            data = {"history": ".fixture-sessions", "env": {"TEST_PROFILE": "1"}, "evals": [{
+                "id": "one", "prompt": "go",
+                "setup": "mkdir .fixture-sessions && touch .fixture-sessions/sample.jsonl",
+                "checks": [{"name": "uses same private profile", "run": (
+                    'test "$PI_CODING_AGENT_DIR" = "$(cat profile_path)"'
+                    ' && test -f "$PI_CODING_AGENT_DIR/sessions/sample.jsonl"'
+                    ' && test ! -e "$PI_CODING_AGENT_DIR/sessions/canary.jsonl"'
+                )}],
+            }]}
+            res = self.cli(data, "--keep", "--max-cost", "1", arms=("with", "without"))
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            self.assertEqual([hashlib.sha256(path.read_bytes()).digest() for path in paths], before)
+            for arm in ("with", "without"):
+                run = self.out / f"runs/one/{arm}-1"
+                diff = (run / "diff.patch").read_text()
+                profile = Path(next(line[1:] for line in diff.splitlines() if line.startswith("+/tmp/")))
+                self.addCleanup(shutil.rmtree, profile.parent, ignore_errors=True)
+                self.assertFalse(profile.exists())
+                overlay = json.loads((run / "overlay.json").read_text())
+                self.assertEqual(overlay["archive"], {"enabled": True})
+                self.assertTrue(json.loads((run / "checks.json").read_text())[0]["passed"])
+
+    def test_dry_run_checks_skill_discovery_and_session_capture_with_fixture_history(self) -> None:
+        self.target = write(self.repo / "skills/example/SKILL.md", "---\nname: example\n---\n").parent
+        for flag, problem in (("DROP_SKILL", "skill example: loads nothing"), ("WRONG_CAPTURE", "session capture")):
+            with self.subTest(flag=flag):
+                res = self.cli({"evals": [{"id": "one", "prompt": "go", "history": "history",
+                                          "env": {flag: "1"}}]}, "--dry-run")
+                self.assertEqual(res.returncode, 1)
+                self.assertIn(problem, res.stdout + res.stderr)
+
+    def test_fixture_history_refuses_named_profiles_in_dry_run(self) -> None:
+        for variable in ("OMP_PROFILE", "PI_PROFILE"):
+            with self.subTest(variable=variable):
+                res = self.cli({"history": "history", "evals": [
+                    {"id": "one", "prompt": "go", "env": {variable: "separate-profile"}},
+                ]}, "--dry-run")
+                self.assertEqual(res.returncode, 1)
+                self.assertIn(f"unset {variable}", res.stdout + res.stderr)
+
+    def test_empty_omp_profile_overrides_legacy_profile_for_fixture_history(self) -> None:
+        self.env["PI_PROFILE"] = "separate-profile"
+        res = self.cli({"history": "history", "env": {"OMP_PROFILE": ""},
+                        "evals": [{"id": "one", "prompt": "go"}]}, "--dry-run")
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+
+    def test_fixture_history_may_not_point_at_live_sessions(self) -> None:
+        canary = write(self.agent / "sessions/canary.jsonl", "live session")
+        res = self.cli({"evals": [{"id": "one", "prompt": "go", "history": "history",
+                                  "setup": f"ln -s {shlex.quote(str(canary.parent))} history"}]}, "--dry-run")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("history must stay inside the trial copy", res.stdout + res.stderr)
+
+
+class Setup(unittest.TestCase):
+    def test_failed_setup_removes_its_trial_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch) / "omp-trial"
+            root.mkdir()
+            with patch.object(trial.tempfile, "mkdtemp", return_value=str(root)):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    trial.prepare_work(None, "touch setup-started && exit 9")
+            self.assertFalse(root.exists())
+
+
 class TtsrCases(unittest.TestCase):
-    def test_verdicts(self) -> None:
-        self.assertEqual(trial.ttsr_verdict({"triggered": [{"name": "r"}], "notTriggered": []}), "fires")
-        self.assertEqual(trial.ttsr_verdict({"triggered": [], "notTriggered": [{"name": "r"}]}), "quiet")
-        judged = {"name": "r", "question": "Q?", "defined": {"regex": ["x"], "ast": []}}
-        self.assertEqual(trial.ttsr_verdict({"triggered": [], "notTriggered": [{**judged, "matched": {"regex": ["x"], "ast": []}}]}), "question")
-        self.assertEqual(trial.ttsr_verdict({"triggered": [], "notTriggered": [{**judged, "matched": {"regex": [], "ast": []}}]}), "quiet")
+    def setUp(self) -> None:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name)
+        self.rule = write(self.root / "rules/example.md", "---\ncondition: token\n---\n")
+        self.evals = self.root / "evals.json"
+
+    def cases(self, *cases: dict) -> tuple[int | str, str]:
+        self.evals.write_text(json.dumps({"rule_cases": cases}))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as stopped:
+            trial.cmd_rules(argparse.Namespace(target=self.rule, evals=self.evals))
+        return stopped.exception.code, output.getvalue()
+
+    def result(self, *rules: str, fires: bool = False) -> subprocess.CompletedProcess:
+        entries = [{"name": name, "matched": {"regex": ["token"]}} for name in rules]
+        return subprocess.CompletedProcess([], 0, json.dumps({
+            "triggered": entries if fires else [], "notTriggered": [] if fires else entries,
+        }), "")
+
+    def test_judged_rule_preserves_other_frontmatter_and_respects_scope(self) -> None:
+        prefix = b"---\r\ncondition:\r\n  - token\r\n"
+        suffix = b"\r\n# scope comment\r\nscope: 'tool:edit(src/*.rs)'\r\n---\r\nquestion: body\r\n"
+        original = prefix + b"question: >-\r\n  line one\r\n  line two\r\n" + suffix
+        self.rule.write_bytes(original)
+
+        def ttsr(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+            isolated = Path(cmd[cmd.index("--rule") + 1])
+            self.assertNotEqual(isolated, self.rule)
+            self.assertEqual(isolated.read_bytes(), prefix + suffix)
+            self.assertEqual(kwargs["input"], "token")
+            return self.result("example", fires=cmd[cmd.index("--path") + 1] == "src/a.rs")
+
+        with patch.object(trial.subprocess, "run", side_effect=ttsr):
+            code, out = self.cases({"snippet": "token", "path": "docs/a.rs", "fires": False},
+                                   {"snippet": "token", "path": "src/a.rs", "fires": True})
+        self.assertEqual(code, 0, out)
+        self.assertIn("scope+prefilter; judge not run", out)
+        self.assertIn("got quiet", out)
+        self.assertIn("got fires", out)
+        self.assertEqual(self.rule.read_bytes(), original)
+
+    def test_uses_only_a_verdict_from_exactly_the_intended_rule(self) -> None:
+        for names in ((), ("another",), ("example", "second")):
+            with self.subTest(names=names), patch.object(trial.subprocess, "run", return_value=self.result(*names)):
+                code, out = self.cases({"snippet": "other", "path": "src/a.rs", "fires": False})
+                self.assertNotEqual(code, 0)
+                self.assertIn("exactly", str(code) + out)
+
+    def test_cases_without_expectations_print_verdicts_without_failing(self) -> None:
+        with patch.object(trial.subprocess, "run", return_value=self.result("example", fires=True)):
+            code, out = self.cases({"snippet": "-token", "path": "src/a.rs"})
+        self.assertEqual(code, 0)
+        self.assertIn("fires", out)
+        self.assertNotIn("expected", out)
+
+    def test_wrong_expectation_fails(self) -> None:
+        with patch.object(trial.subprocess, "run", return_value=self.result("example", fires=True)):
+            code, out = self.cases({"snippet": "token", "path": "src/a.rs", "fires": False})
+        self.assertEqual(code, 1)
+        self.assertIn("expected quiet, got fires", out)
+
+    def test_rejects_patch_envelopes_in_labelled_cases(self) -> None:
+        for snippet in ("[src/a.rs#AAAA]\n+ token", "*** Begin Patch\n+ token", "*** Update File: src/a.rs",
+                        "*** Add File: src/a.rs", "token\nPUT >3:\n+ token", "CUT 2*=3"):
+            with self.subTest(snippet=snippet), patch.object(trial.subprocess, "run", return_value=self.result("example")):
+                code, out = self.cases({"snippet": snippet, "path": "src/a.rs", "fires": False})
+                self.assertNotEqual(code, 0)
+                self.assertIn("a rule case is what the matcher sees: the added lines of one file", str(code) + out)
+
+    def test_one_bad_case_does_not_stop_the_others(self) -> None:
+        with patch.object(trial.subprocess, "run", return_value=self.result("example", fires=True)):
+            code, out = self.cases({"snippet": "[a.rs#AAAA]", "path": "src/a.rs", "fires": True},
+                                   {"snippet": "token", "path": "src/a.rs", "fires": True})
+        self.assertEqual(code, 1)
+        self.assertIn("1/1 passed", out)
+        self.assertIn("1 case(s) could not be tested", out)
+
+    def test_only_exact_single_file_deliveries_are_scored(self) -> None:
+        verdicts = iter([True, False, True, True])
+        with patch.object(trial.subprocess, "run",
+                          side_effect=lambda *a, **k: self.result("example", fires=next(verdicts))):
+            code, out = self.cases(
+                {"snippet": "[pasted#AAAA]\ntoken", "path": "src/a.rs", "delivered": ["example"], "delivery": "exact"},
+                {"snippet": "token", "path": "src/b.rs", "delivered": ["example"], "delivery": "exact"},
+                {"snippet": "token", "path": "src/c.rs", "delivered": [], "delivery": "exact"},
+                {"snippet": "token", "path": "src/d.rs", "delivered": [], "delivery": "batch"})
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out.count("DIFF"), 2)
+        self.assertIn("(live batch: quiet)", out)
+        self.assertIn("offline agrees with live delivery on 1/3 single-file edits", out)
+
+    def test_judged_rules_are_not_scored_against_live_delivery(self) -> None:
+        self.rule.write_text("---\ncondition: token\nquestion: is it bad?\n---\n")
+        with patch.object(trial.subprocess, "run", return_value=self.result("example", fires=True)):
+            code, out = self.cases({"snippet": "token", "path": "src/a.rs", "delivered": [], "delivery": "exact"})
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("DIFF", out)
+        self.assertNotIn("agrees", out)
+
+    def test_edit_and_write_cases_require_path(self) -> None:
+        for tool in ("edit", "write"):
+            with self.subTest(tool=tool), patch.object(trial.subprocess, "run", return_value=self.result("example")):
+                code, out = self.cases({"snippet": "other", "tool": tool, "fires": False})
+                self.assertNotEqual(code, 0)
+                self.assertIn("requires path", str(code) + out)
 
 
 class References(unittest.TestCase):

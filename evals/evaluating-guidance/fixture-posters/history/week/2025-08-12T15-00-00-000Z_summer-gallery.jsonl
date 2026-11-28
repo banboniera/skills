@@ -1,0 +1,4 @@
+{"type":"session","version":3,"id":"01800000-0000-7000-8000-000000000006","timestamp":"2025-08-12T15:00:00.000Z","cwd":"/fixture","title":"Summer gallery recap"}
+{"type":"message","id":"a0060001","parentId":null,"timestamp":"2025-08-12T15:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"Put these summer gallery captions in order: Pearl, amber, pearl."}],"timestamp":1755010801000}}
+{"type":"message","id":"a0060002","parentId":"a0060001","timestamp":"2025-08-12T15:00:07.000Z","message":{"role":"assistant","content":[{"type":"text","text":"Here's the order: Pearl, amber, pearl."}],"stopReason":"stop","timestamp":1755010807000}}
+{"type":"message","id":"a0060003","parentId":"a0060002","timestamp":"2025-08-12T15:00:41.000Z","message":{"role":"user","content":[{"type":"text","text":"amber should come first; order these without using capitalization."}],"timestamp":1755010841000}}

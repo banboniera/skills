@@ -1,0 +1,65 @@
+[
+  ["2025-09-15T09:00:00", "north-wall-labels", [
+    ["user", "Order these display captions for the north wall: Fir, ash, fir."],
+    ["assistant", "Fir, ash, fir."],
+    ["user", "No, ash comes first. Uppercase isn't a separate group on the wall labels."],
+    ["assistant", "ash, Fir, fir."]
+  ]],
+  ["2025-09-15T14:00:00", "export-by-number", [
+    ["user", "Order the three export filenames for the shipping bundle by their batch numbers."],
+    ["assistant", "I ordered the filenames by label."],
+    ["user", "No, use the numbers, not the displayed text."],
+    ["assistant", "The bundle is now in batch-number order."]
+  ]],
+  ["2025-09-16T10:00:00", "atrium-handout", [
+    ["user", "Sort the captions OAK, Oak, elm for the atrium handout, keeping their original spelling."],
+    ["assistant", "OAK, Oak, elm."],
+    ["user", "Case doesn't matter for sorting the handout. elm is first."],
+    ["assistant", "elm, Oak, OAK."],
+    ["user", "Keep OAK before Oak; they tie, so don't reverse their original order."],
+    ["assistant", "elm, OAK, Oak."]
+  ]],
+  ["2025-09-16T12:00:00", "printer-downtime", [
+    ["user", "Can you generate today's press receipt?"],
+    ["tool", "read", {"path": "out/todays.receipt.json"}, "No such file: the printer job did not start", true],
+    ["assistant", "The receipt isn't present. I can't infer the print job succeeded."]
+  ]],
+  ["2025-09-17T09:00:00", "placard-index", [
+    ["user", "I need the placard captions in display order: Moss, birch, moss."],
+    ["tool", "read", {"path": "rule://caption-order"}, "Order gallery captions case-insensitively; break ties by keeping their input order."],
+    ["assistant", "birch, Moss, moss."]
+  ]],
+  ["2025-09-17T14:00:00", "caption-spaces", [
+    ["user", "Copy these captions verbatim, including the extra space in Pine  Lake."],
+    ["assistant", "Pine Lake."],
+    ["user", "There's a double space in 'Pine  Lake'; please preserve it."],
+    ["assistant", "Pine  Lake."]
+  ]],
+  ["2025-09-18T09:00:00", "mezzanine-board", [
+    ["user", "Please put the headings Iris, fern, iris in order for the mezzanine display board."],
+    ["tool", "read", {"path": "rule://caption-orders"}, "Rule not found: caption-orders", true],
+    ["assistant", "Iris, fern, iris."],
+    ["user", "Sort the words without case, and don't flip equal labels."],
+    ["assistant", "fern, Iris, iris."]
+  ]],
+  ["2025-09-18T13:30:00", "case-sensitive-demo", [
+    ["user", "For a Python exercise, intentionally show the normal case-sensitive ordering for Apple and apple. This is not for gallery captions."],
+    ["assistant", "Apple, then apple, because uppercase sorts first in this example."]
+  ]],
+  ["2025-09-19T09:00:00", "microsite-caption-copy", [
+    ["user", "Trim the extra punctuation in the kiosk caption, but leave its place in the list as is."],
+    ["assistant", "I removed the extra dash. The item stays in the same position."]
+  ]],
+  ["2025-09-19T15:15:00", "reading-the-contrast-report", [
+    ["user", "Explain what the latest contrast check means. Don't edit the palette."],
+    ["assistant", "The check rejects print ink whose brightest channel is above its threshold."]
+  ]],
+  ["2025-09-20T13:00:00", "press-edition-name", [
+    ["user", "Use the date in the proof's filename, but leave the printed caption alone."],
+    ["assistant", "The filename has the date; the title printed on the proof is unchanged."]
+  ]],
+  ["2025-09-21T11:00:00", "find-a-proof", [
+    ["user", "Which workshop proof already uses the dark pine color?"],
+    ["assistant", "The folded map proof is the one described as dark pine."]
+  ]]
+]

@@ -19,13 +19,20 @@ project rule replaces the user rule of that name.
   `astCondition` can both stop the call before it runs. A `question` is judged
   after the output, so it cannot prevent the action; it costs a judge call per
   in-scope output, and with `ttsr.judge: auto` it is judged only when the
-  `judge` model role is a native TypeSafe model: check, or use a `condition`.
-  Prefilter a `question` with `condition` and `scope`.
+  `judge` role resolves to a native judgment API (TypeSafe, OpenRouter, OpenAI
+  or Google Decisions): check `omp config get modelRoles`, or use a
+  `condition`. Prefilter a `question` with `condition` and `scope`.
 - `scope`: `text`, `thinking`, `tool` or `tool:<name>(<glob>)`, comma-separated;
   without it the rule watches prose and all tool arguments. A `condition` that
   looks like a glob becomes an edit/write scope, so write scopes explicitly.
-- `astCondition` sees what an edit adds or a write contains, in files whose
-  extension names a language; `ast_edit` changes are invisible to it.
+- On `edit` and `write`, `condition`, `astCondition` and the judge see one
+  entry per touched file holding only what the call adds: added lines,
+  `new_string` for a replace, the whole content for a write. They never see the
+  payload syntax (`[path#TAG]`, `PUT`, a leading `+`, `*** Update File`), so a
+  condition anchored on it never fires live. Existing and removed code are
+  invisible, so a `question` that needs them raises false alarms.
+  `astCondition` works only in files whose extension names a language;
+  `ast_edit` changes are invisible to it.
 - `globs` require a matching file path; `agents: [main]` limits the rule to the
   top-level session.
 - `interruptMode`: `always` (stop the output and re-prompt), `never` (deliver
@@ -40,7 +47,13 @@ project rule replaces the user rule of that name.
 
 **Checks:**
 `python3 "$(realpath skill://testing-guidance/scripts/trial.py)" rules --target <rule.md> --evals <evals.json>`
-runs the eval set's `rule_cases`: snippets the rule must fire on and near
-misses it must ignore (for a `question` rule, only its prefilter).
-`omp ttsr scan -r <rule.md> <dir>` lists every hit in a real tree; a hit outside
-the rule's intent is a false positive.
+runs the eval set's `rule_cases`: what the matcher would see (the added lines
+of one file, with its `tool` and `path`), which the rule must fire on, and near
+misses it must ignore. For a `question` rule it tests scope and prefilter only;
+the judge does not run.
+`sessions.py cases` ([evaluating-guidance](skill://evaluating-guidance)) turns
+a window's real edits into such cases, each listing the rules delivered live,
+so offline verdicts can be compared with live delivery.
+`omp ttsr scan -r <rule.md> <dir>` takes one directory and skips `question`
+rules. Its hits are leads for an over-broad trigger, not a false-positive rate:
+a hit outside the rule's intent is a false positive only if an edit adds it.

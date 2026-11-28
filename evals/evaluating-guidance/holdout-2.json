@@ -1,0 +1,70 @@
+{
+  "fixture": "fixture-kiln-studio",
+  "setup": "rm .fixture-history.py",
+  "env": {"GUIDANCE_REVIEW_STATE": ".fixture-review-state", "TZ": "UTC", "PYTHONDONTWRITEBYTECODE": "1"},
+  "evals": [
+    {
+      "id": "studio-dispatch-reminder-timing",
+      "split": "test",
+      "history": ".fixture-sessions",
+      "setup": "python3 .fixture-history.py dispatch && rm .fixture-history.py",
+      "prompt": "Two studio jobs went out wrong during the Oct 5–11, 2026 week: the Sable firing and the Quartz packing sheet. Can you look through the sessions and tell me what happened with the reminders? Make the smallest guidance change the evidence supports, if any. Leave the studio program and data alone.",
+      "expectations": [
+        "Cites the Sable release session or an entry in its FiringQueue transcript and establishes that the worker received kiln-release-window as a pre-action interruption, then successfully published without checking the window. Classifies this as ignored guidance, not a failure to reach the worker or a second publication during the interrupted attempt.",
+        "Cites the Quartz packing session or entries in it and establishes that the --spool call ran before the developer reminder for kiln-pack-destination. Classifies this as too late to guide that decision, not an ignored pre-action warning. Does not double-count the custom injection, ttsr_injection record and developer reminder as multiple deliveries.",
+        "Explains why both instructions are correct for the local work-order workflow; preserves the release rule and reports changing only the packing rule to interrupt before the call, without claiming that timing alone would guarantee compliance."
+      ],
+      "checks": [
+        {
+          "name": "Packing rule interrupts before spooling, and only it changed",
+          "run": "test \"$(git diff HEAD --name-only)\" = .omp/rules/kiln-pack-destination.md && test -z \"$(git ls-files --others --exclude-standard)\" && python3 -c 'import re; from pathlib import Path; text = Path(\".omp/rules/kiln-pack-destination.md\").read_text().split(\"---\", 2)[1]; assert any(line.partition(\":\")[2].strip().strip(chr(34) + chr(39)) in {\"always\", \"tool-only\"} for line in text.splitlines() if re.match(r\"^interruptMode\\s*:\", line))'"
+        },
+        {
+          "name": "Packing rule still catches spool requests and leaves drafts alone",
+          "run": "for option in --spool --draft; do omp ttsr test --json --source tool --tool bash -r .omp/rules/kiln-pack-destination.md \"python3 studio.py pack Quartz \"\"$option\" | python3 -c 'import json, sys; data = json.load(sys.stdin); assert bool(data[\"triggered\"]) == (sys.argv[1] == \"--spool\")' \"$option\" || exit 1; done"
+        }
+      ]
+    },
+    {
+      "id": "glaze-slip-second-copy",
+      "split": "test",
+      "prompt": "The glaze-slip rule and the review-glaze-slip command keep saying the same thing. Can we drop the rule? If it really is redundant, remove it; otherwise tell me why we still need it. Don't change the slip workflow.",
+      "expectations": [
+        "Identifies the actual repeated instruction about checking the work order's unit and batch before making a slip; distinguishes duplication of words from duplication of protection.",
+        "Cites the triggered pre-print rule and the command's already-printed receipt, or the corresponding print path in studio.py. Explains that the command does not reach the agent making the print decision and cannot substitute for the pre-action stop.",
+        "Recommends keeping the rule and leaves both the slip workflow and guidance unchanged; does not claim the rule is unnecessary because no incident is shown."
+      ],
+      "checks": [
+        {"name": "The pre-print rule and the existing workflow were not changed", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "kiln-week-with-carry-in",
+      "split": "test",
+      "history": ".fixture-sessions",
+      "setup": "python3 .fixture-history.py weekly && rm .fixture-history.py",
+      "prompt": "Do the weekly review of this project’s guidance for Oct 5–11, 2026 UTC. I’m especially interested in how many sessions and user turns there were, and whether agents actually used the unload-card skill. Just report the findings and recommendations this time.",
+      "expectations": [
+        "Reports 10 project sessions and 9 in-window user turns. Cites the Cedar handoff session or an entry, explains it still had in-window activity despite its only user turn being before the window, and does not count that earlier turn. Excludes the Oct 12 Balm session.",
+        "Separately identifies the attempted but failed unload-card body read in the Flint session and the successful unload-card body read in the Larch session, citing the sessions or entries. Counts one successful deliberate load, not two and not the failed attempt as a delivery; does not infer that listing the skill loaded its body.",
+        "Gives evidence-backed recommendations rather than treating these counts alone as proof to delete or broaden the skill. Leaves project guidance and code unchanged, consistent with the report-only request."
+      ],
+      "checks": [
+        {"name": "The report-only review did not edit tracked or untracked project files", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "studio-bin-key-claim",
+      "split": "test",
+      "prompt": "Is that line in the studio-bin rule about dropping leading zeroes actually right? I'm about to tell people to use it for the bin lookup. Please tell me if the callers rely on anything different before I do. Don't fix files yet.",
+      "expectations": [
+        "Rejects the guidance's leading-zero claim using the actual bin_key implementation and a concrete example: ' B-07 ' becomes 'b-07', not 'b-7'. Cites the guidance and the code source rather than treating the rule as authoritative.",
+        "Identifies bin_location or its CLI caller as depending on the preserved key for the lookup in data/bins.json; cites the caller or data and explains that 'b-07' and 'b-7' select different physical shelves, so stripping zeroes (in the helper or before the lookup) could route clay incorrectly.",
+        "Recommends correcting the guidance to reflect trim-and-lowercase without changing the current keys/callers. Does not silently change the rule, code, tests or data during the assessment."
+      ],
+      "checks": [
+        {"name": "The assessment left the bin rule, callers, and inventory untouched", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    }
+  ]
+}

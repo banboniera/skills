@@ -1,0 +1,69 @@
+[
+  ["2025-10-19T22:00:00", "prior-review-export", [
+    ["user", "Can you show the old log marker from the example email's footer? Don't advance the checkpoint."],
+    ["assistant", "The example footer, quoted for reference only:\n\n> guidance-review-window 2025-10-20T00:00:00Z 2025-10-25T00:00:00Z @@PROJECT@@"]
+  ]],
+  ["2025-10-20T09:00:00", "kiosk-preview-sand", [
+    ["user", "For the lantern kiosk mock-up only, make the neutral preview ink a little warmer."],
+    ["tool", "edit", {"input": "*** Begin Patch\n[src/palette.py#48EF]\nPUT 3.=3:\n+INK_COLOR = \"#666056\"\n*** End Patch"}, "Applied patch to src/palette.py"],
+    ["judged", ["print-palette"], "INK_COLOR =", "Check a print proof before reporting the palette change as ready."],
+    ["assistant", "Only the kiosk preview color changed; the print warning showed up after the edit."],
+    ["user", "This one is not going to the printer. Please don't ask me to approve a print proof."]
+  ]],
+  ["2025-10-20T13:30:00", "missing-font", [
+    ["user", "The demo proof is missing the display font. See whether the font was bundled."],
+    ["assistant", "The demo archive has no font asset. This isn't a color setting problem."]
+  ]],
+  ["2025-10-21T10:00:00", "poster-contrast-help", [
+    ["user", "Which tests do we run to check white-stock contrast? Just tell me, don't change anything."],
+    ["tool", "read", {"path": "rule://print-palette"}, "Describe the visual impact on shipped posters and check a print proof before reporting the palette change as ready."],
+    ["assistant", "Run the palette test for white-stock contrast."]
+  ]],
+  ["2025-10-21T16:30:00", "open-studio-preview", [
+    ["user", "Refresh the Open Studio monitor preview. Don't update the edition print settings."],
+    ["tool", "edit", {"input": "*** Begin Patch\n[src/palette.py#441B]\nPUT 3.=3:\n+INK_COLOR = \"#444444\"\n*** End Patch"}, "Applied patch to src/palette.py"],
+    ["judged", ["print-palette"], "INK_COLOR =", "Check a print proof before reporting the palette change as ready."],
+    ["assistant", "The monitor preview uses gray. The shipped color did not change."],
+    ["user", "Please keep the print proof out of this one too; the monitor is the only target."]
+  ]],
+  ["2025-10-22T08:00:00", "caption-spacing", [
+    ["user", "Confirm 'Winter  Map' is still written with two spaces in the title logs."],
+    ["assistant", "The two spaces are still there."]
+  ]],
+  ["2025-10-22T11:00:00", "reused-ink-note", [
+    ["user", "Jot down the dark ink identifier for tomorrow's preview."],
+    ["assistant", "The note needs the preview ink identifier, not the press default."]
+  ]],
+  ["2025-10-23T09:00:00", "archived-display-preview", [
+    ["user", "Update the display preview from the archived settings."],
+    ["tool", "edit", {"input": "*** Begin Patch\n[src/palette.py#08CB]\nPUT 3.=3:\n+INK_COLOR = \"#484848\"\n*** End Patch"}, "Applied patch to src/palette.py"],
+    ["pruned", ["print-palette"]],
+    ["assistant", "The archived display preview settings are in place."]
+  ]],
+  ["2025-10-23T15:30:00", "poster-stock-question", [
+    ["user", "Does the press proof expect cream or white stock?"],
+    ["assistant", "The current contrast test assumes white stock."]
+  ]],
+  ["2025-10-24T10:00:00", "reuse-old-layout", [
+    ["user", "Reuse the type layout from the summer edition, without touching the palette."],
+    ["assistant", "I kept the palette unchanged."]
+  ]],
+  ["2025-10-25T13:00:00", "cemetery-show-proof", [
+    ["user", "Please make a production proof for the Cemetery Show; the printer wants to compare two swatches."],
+    ["assistant", "The printer will add the proof notes after the stock check."]
+  ]],
+  ["2025-10-26T10:00:00", "last-week-title-proof", [
+    ["user", "Does the title from the launch listing still match the proof?"],
+    ["assistant", "Yes; the title matches the listing."]
+  ]],
+  ["2025-10-26T15:00:00", "ready-for-monday", [
+    ["user", "Tell me what's ready for Monday's gallery meeting."],
+    ["assistant", "The monitor previews are ready. The printer has not returned their stock notes yet."]
+  ]],
+  ["2025-10-27T00:00:00", "new-week-preview", [
+    ["user", "This week's kiosk gets the blue preview; please stop once it is visible."],
+    ["tool", "edit", {"input": "*** Begin Patch\n[src/palette.py#45CC]\nPUT 3.=3:\n+INK_COLOR = \"#113355\"\n*** End Patch"}, "Applied patch to src/palette.py"],
+    ["judged", ["print-palette"], "INK_COLOR =", "Check a print proof before reporting the palette change as ready."],
+    ["assistant", "The new preview is visible."]
+  ]]
+]

@@ -1,0 +1,1 @@
+{"expectations":[{"text":"Sorts captions case-insensitively and preserves order for ties.","passed":false,"p_yes":0.19,"evidence":""}]}

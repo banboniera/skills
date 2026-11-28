@@ -1,0 +1,206 @@
+{
+  "fixture": "fixture-posters",
+  "setup": "python3 replay.py",
+  "goal": "The with arm loads the skill in every run, passes at least 80% of checks and expectations, and improves on old=HEAD. Aim for at least 85% trigger accuracy on the held-out queries.",
+  "evals": [
+    {
+      "id": "keep-the-overwrite-stop",
+      "pilot": true,
+      "prompt": "I want to cut down on duplicate warnings before Friday's poster release. Can you review the edition replacement guidance and checks? My first instinct is to drop both overwrite rules since checks/review_release.py catches it anyway. Make any safe cleanup now, but leave how the release runs alone.",
+      "expectations": [
+        "Explains that the edition is already overwritten before the receipt check runs, so that check cannot replace the before-action approval stop",
+        "Shows that release-replacement.md and edition-overwrite.md have the same scope, match, interrupt timing and instruction, then removes only one of them",
+        "Keeps the remaining rule as an interrupt before the replacement with an unused output path as the alternative; does not weaken approval to a reminder"
+      ],
+      "checks": [
+        {"name": "only one of the two identical stop rules is deleted", "run": "change=$(git diff HEAD --name-status) && case \"$change\" in \"D$(printf '\\t').omp/rules/release-replacement.md\"|\"D$(printf '\\t').omp/rules/edition-overwrite.md\") test -z \"$(git ls-files --others --exclude-standard)\" ;; *) exit 1 ;; esac"}
+      ]
+    },
+    {
+      "id": "repair-false-proof-option",
+      "pilot": true,
+      "prompt": "I get an uppercase proof even with POSTER_UPPERCASE=false. build-poster says that should leave the title alone. Check the advice against Python and trace where we used it. If it got into the implementation too, fix the skill and code here, with a regression test. Don't change what true or an unset option does.",
+      "expectations": [
+        "Verifies with Python's official truth-value documentation or a direct Python reproduction that a nonempty string such as 'false' is truthy, and identifies how src/poster.py relied on the wrong guidance",
+        "Replaces the false technical claim in build-poster with the actual parsing behavior; does not remove the supported false setting or fix the symptom by changing the input",
+        "Adds a test that exercises the literal environment value 'false' and fails if the old bool(text) behavior returns, rather than asserting implementation text"
+      ],
+      "checks": [
+        {"name": "false preserves mixed case; true uppercases; unset still preserves case", "run": "set -e; test \"$(POSTER_UPPERCASE=false python3 -m src.poster Open)\" = 'O p e n'; test \"$(POSTER_UPPERCASE=true python3 -m src.poster Open)\" = 'O P E N'; test \"$(env -u POSTER_UPPERCASE python3 -m src.poster Open)\" = 'O p e n'"},
+        {"name": "the skill and a user-visible regression test are changed", "run": "git diff HEAD --name-only -- .omp/skills/build-poster/SKILL.md | grep -qxF .omp/skills/build-poster/SKILL.md && { git diff HEAD --name-only -- tests; git ls-files --others --exclude-standard -- tests; } | grep -q ."},
+        {"name": "poster proof tests pass", "run": "python3 -m unittest discover -s tests -p 'test_poster*.py'"}
+      ]
+    },
+    {
+      "id": "onboarding-assessment-only",
+      "prompt": "I'm doing the onboarding review this afternoon. Can you check whether the local test and release-check directions in AGENTS.md match what this repository does, and tell me what you'd keep or change? Send me notes only; I need the working tree untouched even if something looks like an easy fix.",
+      "expectations": [
+        "Checks the local unittest command against tests/ and distinguishes the proof test suite from the separate receipt check under checks/",
+        "Evaluates the AGENTS.md directions against actual files and behavior, and gives a keep or proposed wording decision with the reason rather than just saying it looks fine"
+      ],
+      "checks": [
+        {"name": "assessment leaves tracked and untracked project files untouched", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "missed-palette-edits",
+      "split": "test",
+      "setup": "python3 replay.py ink",
+      "history": ".trial-sessions",
+      "prompt": "The cobalt and moss poster proof jobs on Aug 11–12, 2025 both blew past the contrast check. I thought default-ink was supposed to catch that. Look at the two sessions, fix the rule if it's the problem, and tell me how you checked it. Leave the palette and the contrast test themselves alone.",
+      "expectations": [
+        "Cites the two edit calls or their digest lines and finds no delivery before them. Explains specifically that the existing regex looked for a hashline header, but an edit rule matches the added text for one file, not the envelope",
+        "Demonstrates the old miss and the new hit on actual added text, and shows at least one near miss stays quiet; does not treat a match on a patch header as live evidence",
+        "Keeps the contrast-test instruction and pre-action behavior. Does not conclude a real session will certainly follow the check based solely on offline matching"
+      ],
+      "checks": [
+        {"name": "default-ink fires on the actual moss assignment from a hashline edit", "run": "result=$(printf '%s\\n' 'DEFAULT_INK = \"#667733\"' | omp ttsr test --rule .omp/rules/default-ink.md --source tool --tool edit --path src/palette.py --file - --json) && printf '%s\\n' \"$result\" | jq -e '.evaluated == 1 and ([.triggered[].name] == [\"default-ink\"])' >/dev/null"},
+        {"name": "the same ink assignment in a different file stays quiet", "run": "result=$(printf '%s\\n' 'DEFAULT_INK = \"#667733\"' | omp ttsr test --rule .omp/rules/default-ink.md --source tool --tool edit --path src/poster.py --file - --json) && printf '%s\\n' \"$result\" | jq -e '.evaluated == 1 and .triggered == []' >/dev/null"},
+        {"name": "a preview-only assignment in the target file stays quiet", "run": "result=$(printf '%s\\n' 'INK_COLOR = \"#667733\"' | omp ttsr test --rule .omp/rules/default-ink.md --source tool --tool edit --path src/palette.py --file - --json) && printf '%s\\n' \"$result\" | jq -e '.evaluated == 1 and .triggered == []' >/dev/null"},
+        {"name": "only the rule was changed", "run": "test \"$(git diff HEAD --name-only)\" = .omp/rules/default-ink.md && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "same-gap-edit-different-causes",
+      "setup": "python3 replay.py gap",
+      "history": ".trial-sessions",
+      "prompt": "The letter-gap reminder is in the logs for both proof jobs on Aug 11–12, 2025, and both jobs tried minus one. I'm about to tell the team both agents just ignored the rule. Is that a fair reading? Look at both runs, give me a finding I can cite for each, and don't edit anything yet.",
+      "expectations": [
+        "In Tighter proof, cites the successful negative edit and the later developer reminder, and notes that the agent subsequently fixed the edit; does not call the first edit ignored merely because the raw injection record has an early timestamp",
+        "In Compact headline, cites the successful rule read before the negative edit and the assistant's acknowledgment, so the edit is ignored guidance despite also generating a late reminder",
+        "Reports one late-not-delivered-before-action incident and one ignored incident from two sessions, without treating correlated transcript records as separate rule deliveries or proposing the same cause for both"
+      ],
+      "checks": [
+        {"name": "no files changed while diagnosing the two runs", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "print-rule-needs-callers",
+      "prompt": "Can you sign off on print-palette? I have a sample edit that only adds `INK_COLOR = \"#444444\"` in src/palette.py. One person says it's just preview ink, someone else wants us to use the same rule after the edition renderer switches to that value. Tell me what a free test actually proves and whether you'd rely on this rule. No edits or live judge runs for this review.",
+      "expectations": [
+        "Uses the current edition and preview readers in src/poster.py and src/palette.py to conclude the one-line change is preview-only today; shows how the same file and added line become consequential if the renderer begins reading that value",
+        "Checks the in-scope lexical prefilter offline or reports it as eligible, not as a judge pass; identifies that the judge sees the added text and not the unchanged callers needed to tell the cases apart",
+        "Does not sign off on the question as a reliable gate on shipped output. Suggests a source-grounded alternative, such as distinguishing shipping and preview symbols or checking the actual edition output, without claiming the rule was live-tested"
+      ],
+      "checks": [
+        {"name": "sign-off assessment does not change the rule or the application", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "partial-weekly-review-does-not-record",
+      "split": "test",
+      "setup": "python3 replay.py week",
+      "history": ".trial-sessions",
+      "env": {"GUIDANCE_REVIEW_STATE": ".trial-state"},
+      "note": "Checkpoint behavior is comparable only across versions that both support sessions.py record; older versions pass the absence-of-checkpoint check by construction.",
+      "prompt": "I have time for just the Open Studio proof session in the guidance review for Aug 11–12, 2025. Make a first pass on that one, give me notes only, and leave the Summer gallery recap and the rest of the project review for next time. Use the usual weekly review process where it applies so next week can pick up without repeating work.",
+      "expectations": [
+        "Identifies the requested window contains two sessions and only Open Studio was reviewed; gives a concrete finding from Open Studio with a transcript citation, and lists Summer gallery as still unreviewed",
+        "Explicitly declines to advance the project checkpoint because coverage is partial, does not claim the full week reviewed, and does not emit a legacy guidance-review-window marker as if recording completion"
+      ],
+      "checks": [
+        {"name": "the review checkpoint has no file", "run": "test ! -d .trial-state || test -z \"$(find .trial-state -type f -print -quit)\""},
+        {"name": "the partial review leaves the project untouched", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "caption-scores-need-rescoring",
+      "split": "test",
+      "prompt": "The caption-order comparison in evidence/caption-order makes the old arm look better than with. We're deciding whether to undo the rule change before the gallery opens. Use the saved run files to tell me if that result is trustworthy. You can check locally but don't kick off new model runs or change the rule based on those scores.",
+      "expectations": [
+        "Compares both saved runs and reports byte-identical diffs, equivalent grading inputs and opposite judgments for the same expectation; does not treat the score gap as an arm effect",
+        "Identifies the brittle check as a literal grep for key=str.casefold and explains or demonstrates why the lambda patch preserves case-insensitive stable ordering yet can fail that check",
+        "Calls the comparison inconclusive or recommends rescoring the same runs against a behavioral check and a stable rubric; does not recommend keeping or reverting the rule because one score is higher"
+      ],
+      "checks": [
+        {"name": "rule, source, and saved benchmark evidence are unchanged after the review", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "weekly-guidance-cutover",
+      "setup": "python3 replay.py weekly-review",
+      "history": ".trial-sessions",
+      "env": {"GUIDANCE_REVIEW_STATE": ".trial-state"},
+      "note": "The positive checkpoint check deliberately exercises the new record feature; old collectors without record do not pass by leaving an empty state directory or printing a legacy marker.",
+      "prompt": "Do the full weekly guidance review for this poster repo, September 1 through September 7, 2025 UTC. We have the next press run on Monday, so make guidance fixes you can stand behind. Leave product code and tests alone. Tell me what actually happened, what you'd keep or drop, and whether next week's review can start from here.",
+      "expectations": [
+        "Reports 12 in-window sessions analysed, including the weekend-queue session with an in-window reply but no in-window user turn; excludes the August 31 afternoon and September 8 decoys; does not treat the quoted marker in log-format-example as a checkpoint",
+        "Reports two interrupt deliveries in two sessions per overwrite rule (release-replacement and edition-overwrite): one real release attempt and one unrelated printf. Gives transcript or digest line references to both. Counts two rule names in one batch separately without double-counting the custom message and injection",
+        "Finds four default-ink proof edits in four sessions, no live delivery for them, and cites the actual edit entries or digest lines. Replays the added code from those edits, including the annotated assignment and multiline edit, showing the old rule is quiet and the corrected rule fires, while the kiosk-only edit stays quiet",
+        "Counts the three corrected gallery ordering decisions in three separate sessions and cites the correction entries or digest lines. Identifies the existing caption-order guidance was not read before these decisions; it was not a rule interrupt that agents ignored",
+        "Gives a disposition backed by evidence for every project guidance target (AGENTS.md, project skill, and each of the six original rules). Keeps one real pre-overwrite approval stop, removes the equivalent twin, narrows the unrelated match, repairs default-ink without changing the palette, and does not infer other rules are safe to delete merely from zero deliveries",
+        "Records the unfiltered, fully reviewed window through the start of September 8, 2025 UTC; does not treat a prose marker or a scoped digest as recording it"
+      ],
+      "checks": [
+        {"name": "the exact completed window and its 12 sessions are recorded for this checkout", "run": "python3 -c 'from datetime import datetime; from hashlib import sha256; from pathlib import Path; import json; project = Path.cwd(); history = (project / \".trial-sessions\").resolve(); file = Path(\".trial-state\", sha256(f\"{project}\\n{history}\".encode()).hexdigest() + \".json\"); state = json.loads(file.read_text()); assert (state[\"project\"], state[\"since\"], state[\"until\"], state[\"sessions\"]) == (str(project), \"2025-09-01T00:00:00.000000\", \"2025-09-08T00:00:00.000000\", 12); assert datetime.fromisoformat(state[\"recorded_at\"]) >= datetime.fromisoformat(\"2025-09-08T00:00:00+00:00\")'"},
+        {"name": "the repaired default-ink rule covers every real proof edit and ignores preview ink", "run": "set -e; probe() { result=$(printf '%s\\n' \"$1\" | omp ttsr test --rule .omp/rules/default-ink.md --source tool --tool edit --path src/palette.py --file - --json) && printf '%s\\n' \"$result\" | jq -e --argjson count \"$2\" '.evaluated == 1 and (.triggered | length) == $count' >/dev/null; }; probe 'DEFAULT_INK = \"#003399\"' 1; probe 'DEFAULT_INK: str = \"#225533\"' 1; probe 'DEFAULT_INK = \"#656590\"' 1; probe \"$(printf '%s\\n' '# Print production: dark pine ink.' 'DEFAULT_INK = (' '    \"#244544\"' ')')\" 1; probe 'INK_COLOR = \"#333333\"' 0"},
+        {"name": "one overwrite rule remains, stops the real command, and ignores the unrelated printf", "run": "set -e; set -- $(for f in .omp/rules/release-replacement.md .omp/rules/edition-overwrite.md; do if test -f \"$f\"; then printf '%s\\n' \"$f\"; fi; done); test \"$#\" -eq 1; grep -Eq '^interruptMode: +always$' \"$1\"; probe() { result=$(printf '%s\\n' \"$2\" | omp ttsr test --rule \"$1\" --source tool --tool bash --file - --json) && printf '%s\\n' \"$result\" | jq -e --argjson count \"$3\" '.evaluated == 1 and (.triggered | length) == $count' >/dev/null; }; probe \"$1\" \"python3 -m src.release out/saturday.txt 'Saturday proof' --replace\" 1; probe \"$1\" \"printf '%s\\\\n' 'Use --replace to edit the preview description'\" 0"},
+        {"name": "the guidance review leaves product code and tests untouched", "run": "git diff HEAD --quiet -- src tests checks && test -z \"$(git ls-files --others --exclude-standard -- src tests checks)\""}
+      ]
+    },
+    {
+      "id": "gallery-corrections-across-sessions",
+      "setup": "python3 replay.py caption-review",
+      "history": ".trial-sessions",
+      "prompt": "Why do I keep correcting the order of the wall labels and handout captions? I thought we already agreed on the sort order. Look at our runs from September 15–21, 2025 UTC; tell me how widespread it was and fix our guidance if that's where the problem is. Keep the guidance in one place and leave the gallery code alone.",
+      "expectations": [
+        "Reports reviewing the 12 runs in the requested window and correctly identifies four corrections in three sessions: north-wall-labels, two corrections in atrium-handout (case ordering, then stable tie order), and mezzanine-board. Cites those correction entries with transcript or digest lines, excluding numeric filename order, whitespace and the explicitly case-sensitive exercise",
+        "Finds zero automatic caption-order deliveries, one successful deliberate read in placard-index, and a failed read of the mistyped name in mezzanine-board. Cites both read outcomes and does not count them as deliveries or say the agents ignored a rule they successfully received",
+        "Shows the existing helper handles casefold ordering and stable ties; distinguishes sorting a direct answer from code that calls the helper. Improves reach of the existing rule for the affected tasks (including wall labels and handout captions) instead of changing the correct implementation or duplicating the sorting policy",
+        "Reports the scoped targets and their dispositions; does not claim this review advanced the weekly checkpoint"
+      ],
+      "checks": [
+        {"name": "the existing caption rule or its project index is updated, with no unrelated file edits", "run": "changes=$(git diff HEAD --name-status) && test -n \"$changes\" && ! printf '%s\\n' \"$changes\" | grep -vEx \"M$(printf '\\t')(\\.omp/rules/caption-order\\.md|AGENTS\\.md)\" && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    },
+    {
+      "id": "printer-handoff-preserves-prior-window",
+      "split": "test",
+      "setup": "python3 replay.py printer-handoff 2025-10-13 2025-10-20 9",
+      "history": ".trial-sessions",
+      "env": {"GUIDANCE_REVIEW_STATE": ".trial-state"},
+      "prompt": "Pick up the poster guidance review where the last completed review left off and end at the start of October 27, 2025 UTC. I still need the printer's notes on Cemetery Show, so leave that session for me. Look at the rest and tell me whether our preview warnings actually helped. I only need the findings for the handoff; don't edit the project.",
+      "expectations": [
+        "Starts at the recorded October 20 boundary rather than the October 25 date shown in a quoted legacy marker, ends at the start of October 27, and reports 11 of 12 in-window sessions reviewed with cemetery-show-proof explicitly outstanding; does not count the next-week preview or the earlier quoted-marker example",
+        "Reports three print-palette deliveries in three sessions (two judged in kiosk-preview-sand and open-studio-preview; one unknown mode from pruned details in archived-display-preview) and one separate deliberate read in poster-contrast-help. Gives transcript or digest line references and does not double-count paired records or guess the unknown mode",
+        "Shows the two known judgments arrived after edits to preview-only ink, using the shipped and preview readers to explain why those reminders were off-target. Does not infer the pruned message's timing or claim the offline prefilter tested the judge",
+        "Gives a reasoned disposition for print-palette, separates outstanding evidence from established findings, and preserves the prior project checkpoint because the handoff is not the completed weekly review"
+      ],
+      "checks": [
+        {"name": "the original checkpoint still exists with its exact prior window, count, and record time", "run": "python3 -c 'from hashlib import sha256; from pathlib import Path; import json; project = Path.cwd(); history = (project / \".trial-sessions\").resolve(); directory = Path(\".trial-state\"); file = directory / (sha256(f\"{project}\\n{history}\".encode()).hexdigest() + \".json\"); assert list(directory.iterdir()) == [file]; assert json.loads(file.read_text()) == {\"project\": str(project), \"since\": \"2025-10-13T00:00:00.000000\", \"until\": \"2025-10-20T00:00:00.000000\", \"sessions\": 9, \"recorded_at\": \"2025-10-20T00:15:00+00:00\"}'"},
+        {"name": "the handoff leaves tracked and untracked project files untouched", "run": "git diff HEAD --quiet && test -z \"$(git ls-files --others --exclude-standard)\""}
+      ]
+    }
+  ],
+  "triggers": [
+    {"query": "Look at this week's assistant sessions and our repo guidance. Which mistakes would a guidance change actually prevent, and which were just one-offs?", "should_trigger": true},
+    {"query": "Can we retire the restore-confirmation rule now that the lint job complains? Look at when it helped in real runs before you delete anything.", "should_trigger": true},
+    {"query": "We upgraded omp and a bunch of our rules suddenly seem noisy. Go back through the last few days and tell me which ones fired on the wrong work.", "should_trigger": true},
+    {"query": "The build agents keep packaging the sample inputs. Check their last three runs and figure out whether the exclusion guidance was missing, wrong, or just never reached them.", "should_trigger": true},
+    {"query": "Do a read-only review of the installation advice in our .omp skill. Its platform claim looks stale; see what the actual installer and upstream docs say before recommending a change.", "should_trigger": true},
+    {"query": "Read the transcripts from the recent jobs where the naming rule didn't help. I want to know what to keep, rewrite or move into a check, not a brand-new rule by default.", "should_trigger": true},
+    {"query": "Last week's export-helper transcripts show agents using the team's shortcut and corrupting the file names. Audit the guidance that sent them there and fix what the evidence supports.", "should_trigger": true, "split": "test"},
+    {"query": "Before next week's handoff, check the agent instructions against the packages they describe and the recent maintainer corrections. What still earns its space?", "should_trigger": true, "split": "test"},
+    {"query": "Two subagents produced a changelog without an upgrade section even though we have instructions for it. Trace both runs and report whether those instructions ever arrived.", "should_trigger": true, "split": "test"},
+    {"query": "We changed the default model last month; audit the assistant guidance against the sessions since then and clean up rules it demonstrably doesn't need.", "should_trigger": true, "split": "test"},
+    {"query": "Is .omp/rules/use-existing-component.md still needed? We now have a component registry and I can't tell if the reminder does anything the registry can't.", "should_trigger": true},
+    {"query": "These two agent warnings tell me the same thing, but I get them at different times. Would it be safe to drop either one in this repo?", "should_trigger": true},
+    {"query": "Why didn't our no-empty-section rule fire when the assistant removed the last table row? Check that specific run before advising me what to change.", "should_trigger": true, "split": "test"},
+    {"query": "Should we keep the preview-review rule as it is? Review its claim against how the preview actually loads; I'm after a verdict on the existing rule, not a new one.", "should_trigger": true, "split": "test"},
+    {"query": "Turn the import checklist I pasted above into a project skill, with a template for the results and clear stop conditions.", "should_trigger": false},
+    {"query": "Add a /sample-report command that takes a report ID, reads the corresponding file, and writes a draft without publishing it.", "should_trigger": false},
+    {"query": "Write a path-scoped omp rule for our newly agreed file naming convention. Put an example of the required alternative into the reminder.", "should_trigger": false},
+    {"query": "I have two candidate descriptions for the import-check skill. Set up a small trigger-query eval, include near misses, and tell me what running it would cost.", "should_trigger": false},
+    {"query": "Build an offline trigger test for the draft no-tmp-path rule; include examples from two allowed paths and two disallowed ones. Don't install the rule yet.", "should_trigger": false},
+    {"query": "Make an old-vs-with benchmark plan for our new feedback skill. Start with an isolation dry run and then give me the run count and model budget.", "should_trigger": false},
+    {"query": "Our deploy-notes skill barely gets picked up. Write a few prompts that should and shouldn't load it, and measure how often the current wording is chosen.", "should_trigger": false},
+    {"query": "Run the staged rollout skill against its previous commit on five sample tasks and tell me whether the new version scores better.", "should_trigger": false},
+    {"query": "I rewrote the migration-safety rule. Check offline whether it still fires on the edits it should and stays quiet on the rest, before I commit it.", "should_trigger": false},
+    {"query": "Agents ignored the screenshot rule twice this week. Look at those sessions and tell me whether it reached them before they acted or the wording is the problem.", "should_trigger": true},
+    {"query": "Is our 'never squash release branches' instruction still true for the current CI setup? Check the scripts it refers to and how agents used it recently.", "should_trigger": true},
+    {"query": "Use the recipe I just finalized to author a short .omp skill for checking exported audio files, with the exact commands and outcomes.", "should_trigger": false, "split": "test"},
+    {"query": "Set up AGENTS.md as an index linking the four existing release guides by task; don't copy their instructions into the index.", "should_trigger": false, "split": "test"},
+    {"query": "Set up a three-arm eval of the release summary skill with tests that detect unwanted tags and changed files, then check it for free. Don't start model runs.", "should_trigger": false, "split": "test"},
+    {"query": "I want to know whether the new one-line skill description gets selected more reliably than the previous one. Prepare the prompts and show me the exact experiment and estimated cost first.", "should_trigger": false, "split": "test"}
+  ]
+}

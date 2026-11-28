@@ -1,0 +1,5 @@
+{
+  "Sable": {"vent_window": "06:30–07:15", "desk": "west", "unit": "g", "batch": "SB-4"},
+  "Quartz": {"vent_window": "10:00–11:00", "desk": "east", "unit": "g", "batch": "QZ-5"},
+  "Garnet": {"vent_window": "12:00–12:30", "desk": "west", "unit": "oz", "batch": "GN-1"}
+}

@@ -3,8 +3,8 @@
 omp's `/autoresearch` edits, runs a harness, and keeps or reverts the edit by
 a metric (`omp://autoresearch.md`). Use it when a script computes the metric:
 trigger accuracy (`trial.py triggers`) or the `with` arm's check pass rate
-(`trial.py run --arm with`). Judged expectations need an eval cell and stay in
-the manual loop.
+(`trial.py run --arm with --split train`). Judged expectations need an eval
+cell and stay in the manual loop.
 
 The loop is bounded by two caps the user approves: `max_iterations` (at most
 10) and the total `--budget`. Budget them for `max_iterations + 2` harness
@@ -15,6 +15,7 @@ edit. The driving session's own cost is outside `--budget`: start it with
 1. Work in a dedicated worktree on an `autoresearch/*` branch: a discarded
    attempt runs `git reset --hard` and `git clean` on the tree.
    `git worktree add -b autoresearch/<name> ../<repo>-<name>`
+   Record the shipped `HEAD` (`git rev-parse HEAD`) before the loop.
 2. Write `autoresearch.sh` in the worktree root. It runs under plain `bash`,
    where `skill://` does not resolve: use the absolute path from
    `realpath skill://testing-guidance/scripts/trial.py`, and an `--out` under
@@ -25,8 +26,9 @@ edit. The driving session's own cost is outside `--budget`: start it with
    ```bash
    #!/usr/bin/env bash
    set -euo pipefail
+   cache="${XDG_CACHE_HOME:-$HOME/.cache}/omp-trials"
    python3 /abs/trial.py triggers --target skills/<name> --evals evals/<name>/evals.json \
-     --out "/abs/.workspaces/<name>/loop-$(date +%s)" --split train --reps 3 --budget <approved total>
+     --out "$cache/<name>/loop-$(date +%s)" --split train --reps 3 --budget <approved total>
    ```
 
    It prints `METRIC trigger_accuracy_train=…` and exits 1 once the budget is
@@ -39,5 +41,8 @@ edit. The driving session's own cost is outside `--budget`: start it with
 5. The loop stops by itself at `max_iterations`. A run that exits 1 for the
    budget is logged as `crash`, which reverts only that unmeasured edit; the
    next turn is a resume: answer it with the report and call no tool.
-6. Run the test split once on the kept version and report both accuracies, the
-   kept diff and the money spent; the user merges the diff by hand.
+6. Compare the candidate (`with`) to the shipped version (`old=HEAD`, or
+   `old=<recorded rev>` if `HEAD` moved) on `--split test` once. For `triggers`,
+   run one command per arm with distinct sibling output directories. Keep the
+   shipped version unless the candidate wins on the approved metric. Report
+   both held-out scores, the kept diff and total spend.

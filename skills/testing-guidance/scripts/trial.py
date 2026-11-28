@@ -9,8 +9,8 @@
 Arms: `with` (the working copy of the target, frozen when the invocation starts),
 `without` (the target removed), `old=<git-rev>` (the target at that revision).
 
---budget is the total in USD for every paid run whose --out shares a parent directory
-(`.workspaces/<name>/`): spend is kept in `<parent>/spend.jsonl` across invocations.
+--budget is the total in USD for every paid run whose --out shares a parent directory:
+spend is kept in <parent>/spend.jsonl across invocations.
 """
 
 from __future__ import annotations
@@ -28,10 +28,11 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-AGENT_DIR = Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".omp/agent")
+AGENT_DIR = Path(os.environ.get("PI_CODING_AGENT_DIR") or Path.home() / ".omp/agent").expanduser().resolve()
 FOREIGN_SKILL_DIRS = (".omp/skills", ".agents/skills", ".agent/skills", ".claude/skills", ".codex/skills", ".github/skills")
 FRONTMATTER_NAME = re.compile(r"\A---\n(?:.*\n)*?name:\s*['\"]?([\w.-]+)['\"]?\s*\n(?:.*\n)*?---", re.MULTILINE)
 TRIGGER_KEYS = re.compile(r"^(condition|astCondition|question|ttsr_trigger):", re.MULTILINE)
@@ -143,10 +144,11 @@ def install(kind: str, name: str, source: Path | None, work: Path, arm_dir: Path
     return overlay
 
 
-def trial_overlay(arm_overlay: dict, advisor: bool) -> dict:
-    """Settings every trial runs with: no memory, session history, model switches, desktop control or advisor."""
+def trial_overlay(arm_overlay: dict, advisor: bool, lsp: bool = False, *, archive: bool = False) -> dict:
+    """Settings that isolate the trial from live session history and external tools."""
     overlay = {"memory": {"backend": "off"}, "retry": {"modelFallback": False, "usageAwareFallback": False},
-               "computer": {"enabled": False}, "archive": {"enabled": False}, **arm_overlay}
+               "computer": {"enabled": False}, "archive": {"enabled": archive},
+               "lsp": {"enabled": lsp}, **arm_overlay}
     if not advisor:
         overlay["advisor"] = {"enabled": False}
     return overlay
@@ -367,23 +369,11 @@ def parse_description(front: str) -> str:
     return ""
 
 
-def ttsr_verdict(result: dict) -> str:
-    """fires, quiet, or question (a judged rule whose prefilter matched; the CLI never judges)."""
-    if result.get("triggered"):
-        return "fires"
-    for rule in result.get("notTriggered", []):
-        if rule.get("question"):
-            matched, defined = rule.get("matched") or {}, rule.get("defined") or {}
-            prefilter = defined.get("regex") or defined.get("ast")
-            return "question" if not prefilter or matched.get("regex") or matched.get("ast") else "quiet"
-    return "quiet"
-
-
 # ---- working copies and guard ----------------------------------------------------
 
 
-def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True).stdout
+def git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    return subprocess.run(["git", "-C", str(cwd), *args], env=env, capture_output=True, text=True, check=True).stdout
 
 
 def prepare_work(fixture: Path | None, setup: str | None, repo: str | None = None, rev: str | None = None) -> tuple[Path, str]:
@@ -394,18 +384,22 @@ def prepare_work(fixture: Path | None, setup: str | None, repo: str | None = Non
     """
     root = Path(tempfile.mkdtemp(prefix="omp-trial-", dir="/tmp"))
     work = root / "project"
-    if repo is not None:
-        work.mkdir()
-        archive = subprocess.run(["git", "-C", str(Path(repo).expanduser()), "archive", rev or "HEAD"], capture_output=True, check=True)
-        subprocess.run(["tar", "-x", "-C", str(work)], input=archive.stdout, check=True)
-    elif fixture is not None:
-        shutil.copytree(fixture, work, symlinks=True, ignore=shutil.ignore_patterns(".git"))
-    else:
-        work.mkdir()
-    if setup:
-        subprocess.run(setup, shell=True, cwd=work, check=True)
-    git(work, "init", "-q")
-    return work, commit_all(work, "fixture")
+    try:
+        if repo is not None:
+            work.mkdir()
+            archive = subprocess.run(["git", "-C", str(Path(repo).expanduser()), "archive", rev or "HEAD"], capture_output=True, check=True)
+            subprocess.run(["tar", "-x", "-C", str(work)], input=archive.stdout, check=True)
+        elif fixture is not None:
+            shutil.copytree(fixture, work, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+        else:
+            work.mkdir()
+        if setup:
+            subprocess.run(setup, shell=True, cwd=work, check=True)
+        git(work, "init", "-q")
+        return work, commit_all(work, "fixture")
+    except BaseException:
+        shutil.rmtree(root, ignore_errors=True)
+        raise
 
 
 def commit_all(work: Path, message: str) -> str:
@@ -416,16 +410,60 @@ def commit_all(work: Path, message: str) -> str:
 
 
 def changes(work: Path, base: str) -> str:
-    """What the agent changed since `base`, new files included."""
-    git(work, "add", "-A")
-    return git(work, "diff", "--cached", base)
+    """What the agent changed since `base`, including new files, without staging them."""
+    with tempfile.TemporaryDirectory(prefix="omp-trial-index-") as scratch:
+        env = {**os.environ, "GIT_INDEX_FILE": str(Path(scratch) / "index")}
+        git(work, "read-tree", base, env=env)
+        git(work, "add", "-A", env=env)
+        return git(work, "diff", "--cached", base, env=env)
 
 
-def guard_snapshot(paths: list[Path]) -> dict[str, str]:
-    """A fingerprint of everything under the guarded paths: git repos by content, other dirs by mtime and size."""
+def fixture_profile(work: Path, history: str) -> Path:
+    """Private agent configuration and auth with only the fixture's JSONL history."""
+    if not isinstance(history, str) or not history or Path(history).is_absolute():
+        raise ValueError("history must be a relative directory in the trial copy")
+    sessions = (work / history).resolve()
+    if sessions == work or not sessions.is_relative_to(work):
+        raise ValueError("history must stay inside the trial copy")
+    sessions.mkdir(parents=True, exist_ok=True)
+    if any(p.is_symlink() for p in sessions.rglob("*")):
+        raise ValueError("fixture history must not contain symlinks")
+
+    profile = work.parent / "profile"
+    profile.mkdir(mode=0o700)
+    for name in (".env", "config.yml", "models.yml", "auth.json", "mcp.json", "RULES.md", "WATCHDOG.md", "WATCHDOG.yml"):
+        if (src := AGENT_DIR / name).is_file():
+            shutil.copyfile(src, profile / name)
+    for name in ("skills", "rules", "commands", "agents", "extensions"):
+        if (src := AGENT_DIR / name).is_dir():
+            shutil.copytree(src, profile / name, ignore=shutil.ignore_patterns(*CACHE_DIRS))
+    if (database := AGENT_DIR / "agent.db").is_file():
+        # Include uncheckpointed credentials from the live SQLite WAL without writing to it.
+        with closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as src, \
+             closing(sqlite3.connect(profile / database.name)) as dest:
+            src.backup(dest)
+    (profile / "sessions").symlink_to(sessions, target_is_directory=True)
+
+    live = AGENT_DIR / "sessions"
+    if live.is_dir():
+        canary = next(live.iterdir(), None)
+        if canary is not None:
+            candidate = profile / "sessions" / canary.name
+            if canary.exists() and candidate.exists() and canary.samefile(candidate):
+                raise ValueError("fixture history exposes a path from the live sessions directory")
+    return profile
+
+
+def guard_snapshot(paths: list[Path], *, artifacts: tuple[Path, ...] = ()) -> dict[str, str]:
+    """Fingerprint guarded trees; reject trial artifacts anywhere we snapshot."""
+    def refuse(path: Path) -> None:
+        if any(artifact.is_relative_to(path) for artifact in artifacts):
+            sys.exit(f"--out and its spend.jsonl ledger must be outside guarded paths ({path})")
+
     snap: dict[str, str] = {}
     for root in paths:
         root = root.resolve()
+        refuse(root)
         if (root / ".git").exists():
             diff = subprocess.run(["git", "-C", str(root), "diff", "HEAD", "--binary"], capture_output=True, check=True).stdout
             snap[f"git-diff:{root}"] = hashlib.sha256(diff).hexdigest()
@@ -435,10 +473,15 @@ def guard_snapshot(paths: list[Path]) -> dict[str, str]:
                 snap[f"{root}/{rel}"] = f"{st.st_mtime_ns}:{st.st_size}"
             continue
         for dirpath, dirnames, filenames in os.walk(root, followlinks=True) if root.is_dir() else []:
+            if artifacts and Path(dirpath).is_symlink():
+                refuse(Path(dirpath).resolve())
             dirnames[:] = [d for d in dirnames if d not in CACHE_DIRS]
             for filename in filenames:
-                st = (Path(dirpath) / filename).stat()
-                snap[f"{dirpath}/{filename}"] = f"{st.st_mtime_ns}:{st.st_size}"
+                path = Path(dirpath) / filename
+                if artifacts and path.is_symlink():
+                    refuse(path.resolve())
+                st = path.stat()
+                snap[str(path)] = f"{st.st_mtime_ns}:{st.st_size}"
     return snap
 
 
@@ -463,13 +506,15 @@ class Runner:
         self.lock = threading.Lock()
         self.stopped = ""
         self.ledger = out.parent / "spend.jsonl"
-        self.spent_before = self.ledger_total()
         self.guarded = [AGENT_DIR / "skills", AGENT_DIR / "rules", AGENT_DIR / "commands"]
-        top = subprocess.run(["git", "-C", str(args.target.resolve().parent), "rev-parse", "--show-toplevel"],
-                             capture_output=True, text=True, check=False).stdout.strip()  # a target outside git has no repo to guard
+        target = args.target.resolve()
+        directory = target if target.is_dir() else target.parent
+        top = subprocess.run(["git", "-C", str(directory), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, check=False).stdout.strip()
         if top:
             self.guarded.append(Path(top))
-        self.before = guard_snapshot(self.guarded)
+        self.before = guard_snapshot(self.guarded, artifacts=(out.resolve(), self.ledger.resolve()))
+        self.spent_before = self.ledger_total()
 
     def ledger_total(self) -> float:
         """Spend of every run under the ledger's directory, other invocations included."""
@@ -508,14 +553,43 @@ class Runner:
         if changed:
             self.stop("files outside the trial changed: " + ", ".join(changed[:5]))
 
-    def omp(self, prompt: str, work: Path, overlay: Path, session: Path, max_time: str, cap: float) -> subprocess.Popen:
-        cmd = ["omp", "-p", "--mode", "json", "--no-title", "--approval-mode", "yolo", "--session-dir", str(session),
-               "--max-time", max_time, "--max-cost", str(cap)]
+    def session_args(self, session: Path) -> list[str]:
+        cmd = ["omp", "--no-title", "--session-dir", str(session)]
         if self.args.model:
             cmd += ["--model", self.args.model]
         if self.args.thinking:
             cmd += ["--thinking", self.args.thinking]
-        return subprocess.Popen([*cmd, "--", prompt], cwd=work, env=trial_env(overlay), stdin=subprocess.DEVNULL,
+        return cmd
+
+    def check_session_capture(self, work: Path, env: dict[str, str], session: Path) -> None:
+        # Ask the CLI where it would capture a session; no prompt goes to a provider.
+        cmd = [*self.session_args(session), "--mode", "rpc", "--no-ui"]
+        probe = subprocess.run(cmd, cwd=work, env=env, input='{"id":"capture","type":"get_state"}\n',
+                               capture_output=True, text=True, timeout=15)
+        if probe.returncode != 0:
+            raise ValueError(f"omp RPC session capture probe exited {probe.returncode}: {probe.stderr.strip()}")
+        for line in probe.stdout.splitlines():
+            try:
+                response = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # Startup diagnostics can be plain text.
+            if response.get("id") != "capture":
+                continue
+            if not response.get("success"):
+                raise ValueError(f"omp RPC get_state failed: {response.get('error', 'no details')}")
+            state = response.get("data") or {}
+            if not state.get("model"):
+                raise ValueError("omp RPC did not select a model with the copied profile; check config and auth")
+            path = state.get("sessionFile")
+            if not path or Path(path).resolve().parent != session.resolve():
+                raise ValueError(f"omp selected session capture {path!r}, expected a file under {session}")
+            return
+        raise ValueError("omp RPC did not report the session capture path")
+
+    def omp(self, prompt: str, work: Path, env: dict[str, str], session: Path, max_time: str, cap: float) -> subprocess.Popen:
+        cmd = [*self.session_args(session), "-p", "--mode", "json", "--approval-mode", "yolo",
+               "--max-time", max_time, "--max-cost", str(cap)]
+        return subprocess.Popen([*cmd, "--", prompt], cwd=work, env=env, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     def budget_line(self) -> str:
@@ -529,10 +603,11 @@ class Runner:
             sys.exit(1)
 
 
-def trial_env(overlay: Path) -> dict[str, str]:
-    """Environment of a trial session: the arm's overlay last, and the marker that refuses nested paid trials."""
-    files = os.pathsep.join(filter(None, [os.environ.get("PI_CONFIG_FILES"), str(overlay)]))
-    return {**os.environ, "PI_CONFIG_FILES": files, "OMP_TRIAL": "1"}
+def trial_env(overlay: Path, extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Environment for omp and checks, with the isolation overlay and trial marker enforced."""
+    env = {**os.environ, **(extra or {})}
+    files = os.pathsep.join(filter(None, [env.get("PI_CONFIG_FILES"), str(overlay)]))
+    return {**env, "PI_CONFIG_FILES": files, "OMP_TRIAL": "1"}
 
 
 class Plan:
@@ -552,30 +627,52 @@ class Plan:
             hidden = owned_name in (self.hide_skills if kind == "skill" else self.hide_rules if kind == "rule" else ())
             print(f"note: {ref} links to {self.name}; " + ("hidden in the without arm" if hidden else "installed in every arm"))
 
-    def setup(self, arm: str, work: Path, run_dir: Path, advisor: bool) -> Path:
+    def setup(self, arm: str, work: Path, overlay: Path, advisor: bool, lsp: bool, agent: Path, *, archive: bool) -> None:
         hide = arm == "without"
-        arm_overlay = install(self.kind, self.name, self.sources[arm], work, run_dir / "arm", AGENT_DIR / "skills", self.base,
-                              self.hide_skills if hide else (), self.hide_rules if hide else ())
-        path = run_dir / "overlay.json"
-        path.write_text(json.dumps(trial_overlay(arm_overlay, advisor), indent=2))
-        return path
+        settings = install(self.kind, self.name, self.sources[arm], work, overlay.parent / "arm", agent / "skills", self.base,
+                           self.hide_skills if hide else (), self.hide_rules if hide else ())
+        overlay.write_text(json.dumps(trial_overlay(settings, advisor, lsp, archive=archive), indent=2))
 
-    def preflight(self, arm: str, work: Path, overlay: Path, run_dir: Path) -> str | None:
+    def preflight(self, arm: str, work: Path, env: dict[str, str], run_dir: Path) -> str | None:
         """None when the arm loads exactly the guidance it should, else the problem."""
-        env = trial_env(overlay)
+        if self.kind not in ("skill", "rule"):
+            return None
+        cmd = ["omp", "skill" if self.kind == "skill" else "ttsr", "list", "--json"]
+        res = subprocess.run(cmd, cwd=work, env=env, capture_output=True, text=True, timeout=15)
+        if res.returncode != 0:
+            raise ValueError(f"omp {cmd[1]} list exited {res.returncode}: {res.stderr.strip()}")
         source = self.sources[arm]
         if self.kind == "skill":
-            out = subprocess.run(["omp", "skill", "list", "--json"], cwd=work, env=env, capture_output=True, text=True, check=True).stdout
+            out = res.stdout
             found = [s["filePath"] for s in json.loads(out).get("skills", []) if s["name"] == self.name or s["name"].endswith(f"/{self.name}")]
             want = [] if source is None else [str(run_dir / "arm/skills" / self.name / "SKILL.md")]
             return None if found == want else f"skill {self.name}: loads {found or 'nothing'}, expected {want or 'nothing'}"
-        if self.kind == "rule":
-            out = subprocess.run(["omp", "ttsr", "list", "--json"], cwd=work, env=env, capture_output=True, text=True, check=True).stdout
-            found = [r["path"] for r in json.loads(out or "[]") if r["name"] == self.name]
-            mine = str(work / ".omp/rules" / f"{self.name}.md")
-            want = [mine] if source is not None and is_triggered_rule(source) else []
-            return None if found == want else f"rule {self.name}: registered {found or 'nothing'}, expected {want or 'nothing'}"
-        return None
+        found = [r["path"] for r in json.loads(res.stdout or "[]") if r["name"] == self.name]
+        mine = str(work / ".omp/rules" / f"{self.name}.md")
+        want = [mine] if source is not None and is_triggered_rule(source) else []
+        return None if found == want else f"rule {self.name}: registered {found or 'nothing'}, expected {want or 'nothing'}"
+
+
+def preflight_env(runner: Runner, plan: Plan, arm: str, work: Path, run_dir: Path, case: dict) -> dict[str, str]:
+    history = case.get("history")
+    overlay = run_dir / "overlay.json"
+    env = trial_env(overlay, case["env"])
+    agent = AGENT_DIR
+    if history is not None:
+        # omp ignores PI_CODING_AGENT_DIR when a named profile is selected.
+        selector = "OMP_PROFILE" if "OMP_PROFILE" in env else "PI_PROFILE"
+        if env.get(selector, "").strip():
+            raise ValueError(f"fixture-history isolation needs the default omp profile; unset {selector}")
+        agent = fixture_profile(work, history)
+        env.update(OMP_PROFILE="", PI_CODING_AGENT_DIR=str(agent))
+    plan.setup(arm, work, overlay, runner.args.advisor, case.get("lsp") is True, agent, archive=history is not None)
+    problem = plan.preflight(arm, work, env, run_dir)
+    if problem:
+        raise ValueError(problem)
+    if history is not None:
+        runner.check_session_capture(work, env, run_dir / "session")
+        print(f"{case.get('id', 'trigger query')} {arm}: fixture-history isolation ok")
+    return env
 
 
 def run_one(runner: Runner, plan: Plan, ev: dict, ev_root: Path, arm: str, rep: int) -> dict:
@@ -590,15 +687,16 @@ def run_one(runner: Runner, plan: Plan, ev: dict, ev_root: Path, arm: str, rep: 
         cap = admitted
     shutil.rmtree(run_dir, ignore_errors=True)
     run_dir.mkdir(parents=True)
-    fixture = ev.get("fixture")
-    work, _ = prepare_work((ev_root / fixture) if fixture else None, ev.get("setup"), ev.get("repo"), ev.get("rev"))
+    work = None
     cost = 0.0
     try:
-        overlay = plan.setup(arm, work, run_dir, args.advisor)
-        problem = plan.preflight(arm, work, overlay, run_dir)
-        if problem:
-            runner.stop(f"isolation failed ({arm}): {problem}")
-            return {**meta, "status": f"error: {problem}"}
+        fixture = ev.get("fixture")
+        work, _ = prepare_work((ev_root / fixture) if fixture else None, ev.get("setup"), ev.get("repo"), ev.get("rev"))
+        try:
+            env = preflight_env(runner, plan, arm, work, run_dir, ev)
+        except (ValueError, OSError, sqlite3.Error, subprocess.SubprocessError) as error:
+            runner.stop(f"isolation failed ({arm}): {error}")
+            return {**meta, "status": f"error: {error}"}
         if args.dry_run:
             print(f"{ev['id']} {arm}: isolation ok")
             return {**meta, "status": "dry run"}
@@ -606,7 +704,7 @@ def run_one(runner: Runner, plan: Plan, ev: dict, ev_root: Path, arm: str, rep: 
         prompt = ev["baseline_prompt"] if arm == "without" and plan.kind == "command" else ev["prompt"]
         max_time = ev.get("max_time", args.max_time)
         start = time.time()
-        proc = runner.omp(prompt, work, overlay, run_dir / "session", max_time, cap)
+        proc = runner.omp(prompt, work, env, run_dir / "session", max_time, cap)
         try:
             stdout, stderr = proc.communicate(timeout=duration_seconds(max_time) + 300)
         except subprocess.TimeoutExpired:
@@ -622,7 +720,7 @@ def run_one(runner: Runner, plan: Plan, ev: dict, ev_root: Path, arm: str, rep: 
         checks = []
         for check in ev.get("checks", []):
             try:
-                res = subprocess.run(check["run"], shell=True, cwd=work, capture_output=True, text=True, check=False,
+                res = subprocess.run(check["run"], shell=True, cwd=work, env=env, capture_output=True, text=True, check=False,
                                      timeout=check.get("timeout", 600))
                 checks.append({"name": check["name"], "passed": res.returncode == 0, "exit_code": res.returncode,
                                "output": (res.stdout + res.stderr)[-3000:]})
@@ -636,13 +734,27 @@ def run_one(runner: Runner, plan: Plan, ev: dict, ev_root: Path, arm: str, rep: 
               + (", touched the target's files" if metrics["touched_target"] else ""), flush=True)
         return {**meta, "status": "done", "dir": str(run_dir.relative_to(runner.out))}
     finally:
-        if not args.dry_run:
-            runner.charge(cost, cap)
-        if not args.keep:
-            shutil.rmtree(work.parent, ignore_errors=True)
+        try:
+            if work is not None:
+                if args.keep:
+                    profile = work.parent / "profile"
+                    if profile.exists():
+                        shutil.rmtree(profile)
+                else:
+                    shutil.rmtree(work.parent)
+        finally:
+            if not args.dry_run:
+                runner.charge(cost, cap)
 
 
 # ---- commands -----------------------------------------------------------------
+
+
+def eval_env(item: dict) -> dict[str, str]:
+    env = item.get("env", {})
+    if not isinstance(env, dict) or not all(isinstance(value, str) for value in env.values()):
+        sys.exit("eval env must be an object with string values")
+    return env
 
 
 def load_evals(path: Path) -> dict:
@@ -650,9 +762,11 @@ def load_evals(path: Path) -> dict:
     ids = [e["id"] for e in data.get("evals", [])]
     if len(ids) != len(set(ids)):
         sys.exit("eval ids must be unique")
+    env = eval_env(data)
     for item in [*data.get("evals", []), *data.get("triggers", [])]:
-        for key in ("fixture", "setup", "repo", "rev"):
+        for key in ("fixture", "setup", "repo", "rev", "history"):
             item.setdefault(key, data.get(key))
+        item["env"] = {**env, **eval_env(item)}
     return data
 
 
@@ -667,13 +781,17 @@ def prepare_args(args: argparse.Namespace) -> None:
 def cmd_run(args: argparse.Namespace) -> None:
     prepare_args(args)
     data = load_evals(args.evals)
-    evals = [e for e in data["evals"] if not args.eval or e["id"] in args.eval][: args.limit or None]
+    evals = [e for e in data["evals"]
+             if (args.split == "all" or e.get("split", "train") == args.split)
+             and (not args.eval or e["id"] in args.eval)][: args.limit or None]
+    if not evals:
+        sys.exit(f"no evals selected for split {args.split}")
     arms = args.arm or ["without", "with"]
+    runner = Runner(args, args.out)
     args.out.mkdir(parents=True, exist_ok=True)
     plan = Plan(args, arms)
     if plan.kind == "command" and "without" in arms and any(not e.get("baseline_prompt") for e in evals):
         sys.exit("a command's without arm needs a baseline_prompt in every eval")
-    runner = Runner(args, args.out)
     jobs = [(e, arm, rep) for e in evals for rep in range(1, args.reps + 1) for arm in arms]
     print(f"{plan.kind} {plan.name}: {len(evals)} evals x {len(arms)} arms x {args.reps} reps = {len(jobs)} runs; {runner.budget_line()}")
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
@@ -688,7 +806,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                   for c in json.loads((args.out / r["dir"] / "checks.json").read_text())]
         if checks:
             print(f"METRIC checks_{re.sub(r'[^\w]', '_', arm)}={sum(checks) / len(checks):.4f}")
-    if not args.dry_run:
+    if runner.stopped or not args.dry_run:
         runner.finish()
 
 
@@ -703,12 +821,12 @@ def cmd_triggers(args: argparse.Namespace) -> None:
     queries = [q for q in data.get("triggers", []) if args.split == "all" or q.get("split", "train") == args.split]
     if not queries:
         sys.exit(f"no trigger queries for split {args.split}")
+    runner = Runner(args, args.out)
     if kind == "skill":
         hint, origin = skill_hint(args.target if args.target.name == "SKILL.md" else args.target / "SKILL.md")
         print(f"hint: {hint}  [{origin}]")
     args.out.mkdir(parents=True, exist_ok=True)
     plan = Plan(args, [args.arm])
-    runner = Runner(args, args.out)
 
     def probe(job: tuple[int, dict, int]) -> dict:
         i, q, rep = job
@@ -718,15 +836,17 @@ def cmd_triggers(args: argparse.Namespace) -> None:
         run_dir = args.out / "triggers" / args.split / f"q{i}-{rep}"
         shutil.rmtree(run_dir, ignore_errors=True)
         run_dir.mkdir(parents=True)
-        work, _ = prepare_work((args.evals.parent / q["fixture"]) if q.get("fixture") else None, q.get("setup"), q.get("repo"), q.get("rev"))
+        work = None
         cost = 0.0
         try:
-            overlay = plan.setup(args.arm, work, run_dir, args.advisor)
-            problem = plan.preflight(args.arm, work, overlay, run_dir)
-            if problem:
-                runner.stop(f"isolation failed: {problem}")
-                return {"query": i, "rep": rep, "status": f"error: {problem}"}
-            proc = runner.omp(q["query"], work, overlay, run_dir / "session", args.max_time, cap)
+            fixture = q.get("fixture")
+            work, _ = prepare_work((args.evals.parent / fixture) if fixture else None, q.get("setup"), q.get("repo"), q.get("rev"))
+            try:
+                env = preflight_env(runner, plan, args.arm, work, run_dir, q)
+            except (ValueError, OSError, sqlite3.Error, subprocess.SubprocessError) as error:
+                runner.stop(f"isolation failed: {error}")
+                return {"query": i, "rep": rep, "status": f"error: {error}"}
+            proc = runner.omp(q["query"], work, env, run_dir / "session", args.max_time, cap)
             triggered, calls, loaded = False, 0, []
             assert proc.stdout is not None
             for line in proc.stdout:
@@ -752,8 +872,11 @@ def cmd_triggers(args: argparse.Namespace) -> None:
             cost = session_metrics(run_dir / "session", q["query"])["cost"]
             return {"query": i, "rep": rep, "status": "done", "triggered": triggered, "loaded": loaded, "cost": cost}
         finally:
-            runner.charge(cost, cap)
-            shutil.rmtree(work.parent, ignore_errors=True)
+            try:
+                if work is not None:
+                    shutil.rmtree(work.parent)
+            finally:
+                runner.charge(cost, cap)
 
     jobs = [(i, q, rep) for i, q in enumerate(queries) for rep in range(1, args.reps + 1)]
     print(f"{len(queries)} queries x {args.reps} reps = {len(jobs)} runs ({args.split}); {runner.budget_line()}")
@@ -777,34 +900,108 @@ def cmd_triggers(args: argparse.Namespace) -> None:
     runner.finish()
 
 
+RULE_CASE_ENVELOPE = re.compile(r"^(?:\[[^\]\r\n]+#[0-9A-Za-z]{4}\]|\*\*\* (?:Begin|Update|Add) |PUT |CUT )", re.MULTILINE)
+
+
+def copy_rule_for_test(rule: Path, scratch: Path) -> tuple[Path, bool]:
+    """Strip only the top-level question and its value, preserving the rest byte for byte."""
+    lines = rule.read_bytes().splitlines(keepends=True)
+    closing = next((i for i, line in enumerate(lines[1:], 1) if line.rstrip(b"\r\n") == b"---"), None)
+    if closing is None or lines[0].rstrip(b"\r\n") != b"---":
+        raise ValueError(f"{rule.name}: missing or unclosed frontmatter")
+    question = next((i for i in range(1, closing) if re.match(rb"""(?:question|'question'|"question")[ \t]*:""", lines[i])), None)
+    if question is not None:
+        end = question + 1
+        for i in range(end, closing):
+            if not lines[i].strip():
+                continue
+            if not lines[i].startswith((b" ", b"\t")):
+                break
+            end = i + 1
+        del lines[question:end]
+    copy = scratch / rule.name
+    copy.write_bytes(b"".join(lines))
+    return copy, question is not None
+
+
+def rule_case_verdict(rule: Path, case: dict) -> str:
+    snippet = case["snippet"]
+    if "fires" in case and RULE_CASE_ENVELOPE.search(snippet):  # mined cases may hold an agent's mistaken paste
+        raise ValueError("a rule case is what the matcher sees: the added lines of one file")
+    source = case.get("source", "tool")
+    cmd = ["omp", "ttsr", "test", "--rule", str(rule), "--source", source, "--json", "--file", "-"]
+    if source == "tool":
+        tool = case.get("tool", "edit")
+        if tool in ("edit", "write") and not case.get("path"):
+            raise ValueError(f"a {tool} rule case requires path")
+        cmd += ["--tool", tool]
+    for key in ("path", "agent"):
+        if case.get(key):
+            cmd += [f"--{key}", case[key]]
+    out = subprocess.run(cmd, input=snippet, capture_output=True, text=True, cwd=rule.parent, timeout=10)
+    if out.returncode:
+        raise ValueError(f"omp exited {out.returncode}: {out.stderr.strip() or out.stdout.strip()}")
+    result = json.loads(out.stdout)
+    triggered = result["triggered"]
+    evaluated = triggered + result["notTriggered"]
+    if len(evaluated) != 1 or evaluated[0]["name"] != rule.stem:
+        raise ValueError(f"omp did not evaluate exactly the isolated rule {rule.stem}")
+    if evaluated[0].get("question"):
+        raise ValueError("omp still sees a judge question; refusing to count this verdict")
+    return "fires" if triggered else "quiet"
+
+
 def cmd_rules(args: argparse.Namespace) -> None:
-    kind, _ = target_kind(args.target)
+    kind, name = target_kind(args.target)
     if kind != "rule":
         sys.exit("rules needs a rules/*.md target")
     cases = load_evals(args.evals).get("rule_cases", [])
     if not cases:
         sys.exit("the eval set has no rule_cases")
-    failed = 0
-    for case in cases:
-        source = case.get("source", "tool")
-        cmd = ["omp", "ttsr", "test", "--rule", str(args.target.resolve()), "--source", source, "--json", "--file", "-"]
-        if source == "tool":
-            cmd += ["--tool", case.get("tool", "edit")]
-        if case.get("path"):
-            cmd += ["--path", case["path"]]
-        if case.get("agent"):
-            cmd += ["--agent", case["agent"]]
-        out = subprocess.run(cmd, input=case["snippet"], capture_output=True, text=True, check=True, cwd=tempfile.gettempdir())
-        verdict = ttsr_verdict(json.loads(out.stdout))
-        want = "fires" if case["fires"] else "quiet"
-        if verdict == "question":
-            status = "prefilter matched; the judge decides (not run offline)"
-            failed += not case["fires"]
-        else:
-            status = "ok" if verdict == want else "FAIL"
-            failed += status == "FAIL"
-        print(f"{status}: expected {want}, got {verdict}: {case.get('path', source)} {case['snippet'][:60]!r}")
-    sys.exit(1 if failed else 0)
+    passed = expected = errors = agree = compared = 0
+    with tempfile.TemporaryDirectory(prefix="omp-rule-test-") as scratch:
+        try:
+            rule, judged = copy_rule_for_test(args.target, Path(scratch))
+        except (OSError, ValueError) as error:
+            sys.exit(error)
+        mode = "scope+prefilter; judge not run" if judged else "scope+condition"
+        print(f"{name}: {mode}")
+        for i, case in enumerate(cases, 1):
+            try:
+                if "fires" in case and not isinstance(case["fires"], bool):
+                    raise ValueError("fires must be a boolean")
+                verdict = rule_case_verdict(rule, case)
+            except (KeyError, OSError, TypeError, ValueError, subprocess.TimeoutExpired) as error:
+                errors += 1
+                print(f"ERROR: case {i}: {error}")
+                continue
+            where = case.get("path", case.get("source", "tool"))
+            sample = f"{where} {case['snippet'][:60]!r}"
+            if "fires" not in case:
+                live = "fires" if name in case.get("delivered", []) else "quiet"
+                if "delivered" in case and case.get("delivery") == "exact" and not judged:
+                    compared += 1
+                    agree += verdict == live
+                    print(f"{'same' if verdict == live else 'DIFF'}: {verdict}: {sample} (live: {live}; "
+                          f"{case.get('transcript', '?')}:L{case.get('line', '?')})")
+                elif "delivered" in case:  # sibling files, untied or judged deliveries: shown, not scored
+                    print(f"{verdict}: {sample} (live {case.get('delivery', 'unknown')}: {live})")
+                else:
+                    print(f"{verdict}: {sample}")
+                continue
+            expected += 1
+            want = "fires" if case["fires"] else "quiet"
+            ok = verdict == want
+            passed += ok
+            print(f"{'ok' if ok else 'FAIL'}: expected {want}, got {verdict}: {sample}")
+    if expected:
+        print(f"{name}: {passed}/{expected} passed ({mode})")
+    if compared:
+        print(f"{name}: offline agrees with live delivery on {agree}/{compared} single-file edits "
+              f"with exact delivery records ({mode})")
+    if errors:
+        print(f"{name}: {errors} case(s) could not be tested")
+    sys.exit(0 if passed == expected and not errors else 1)
 
 
 def cmd_hint(args: argparse.Namespace) -> None:
@@ -823,7 +1020,7 @@ def main() -> None:
     for name, helptext in (("run", "run evals under each arm"), ("triggers", "measure loading on trigger queries")):
         p = sub.add_parser(name, parents=[common], help=helptext)
         p.add_argument("--evals", type=Path, required=True)
-        p.add_argument("--out", type=Path, required=True, help="iteration directory, e.g. .workspaces/<name>/iteration-1")
+        p.add_argument("--out", type=Path, required=True, help="iteration directory outside the guarded trees")
         p.add_argument("--budget", type=float, required=True, help="total USD for all runs sharing --out's parent")
         p.add_argument("--model")
         p.add_argument("--thinking")
@@ -835,6 +1032,7 @@ def main() -> None:
     run.add_argument("--arm", action="append", help="with, without, old=<git-rev>; repeatable (default: without, with)")
     run.add_argument("--reps", type=int, default=3)
     run.add_argument("--eval", action="append", help="run only this eval id; repeatable")
+    run.add_argument("--split", choices=["train", "test", "all"], default="all", help="behavior eval split (default: all)")
     run.add_argument("--limit", type=int, help="run only the first N evals")
     run.add_argument("--max-cost", type=float, default=3.0, help="USD cap per session")
     run.add_argument("--max-time", default="20m")
